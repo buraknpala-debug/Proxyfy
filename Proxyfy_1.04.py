@@ -11,7 +11,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 
-# --- Konfiguration ---
+# --- Configuration ---
 CARD_WIDTH = 63 * mm
 CARD_HEIGHT = 88 * mm
 MARGIN_X = 10 * mm
@@ -20,7 +20,11 @@ SPACING = 2 * mm
 
 def parse_decklist(decklist_text, cut_basic_lands=False):
     deck_dict = {}
-    basic_lands = {"forest", "mountain", "plains", "island", "swamp", "snow-covered forest", "snow-covered mountain", "snow-covered plains", "snow-covered island", "snow-covered swamp"}
+    basic_lands = {
+        "forest", "mountain", "plains", "island", "swamp", 
+        "snow-covered forest", "snow-covered mountain", 
+        "snow-covered plains", "snow-covered island", "snow-covered swamp"
+    }
     
     lines = decklist_text.strip().split('\n')
     for line in lines:
@@ -94,7 +98,7 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
     total_steps = len(cascade_steps) + (1 if fancy_mode else 0)
     
     if fancy_mode:
-        status_text.text("Analysiere Kartendaten für den Fancy-Modus (teuerste Artworks)...")
+        status_text.text("Scanning card data for Fancy Mode (rarest/highest value arts)...")
         still_missing = []
         chunks = [remaining_names[i:i + 20] for i in range(0, len(remaining_names), 20)]
         
@@ -113,7 +117,6 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
                         orig_lower = orig_name.lower()
                         matching_prints = []
                         
-                        # Universeller Abgleich für MDFCs und Split-Karten
                         for card in data.get('data', []):
                             card_name = card['name'].lower()
                             faces = [f.strip() for f in card_name.split('//')]
@@ -142,7 +145,7 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
         if not remaining_names:
             break
             
-        status_text.text(f"Such-Kaskade Stufe {current_step}/{total_steps + len(cascade_steps)} ({len(remaining_names)} Karten übrig)...")
+        status_text.text(f"Querying Scryfall cascade step {current_step}/{total_steps} ({len(remaining_names)} cards remaining)...")
         chunks = [remaining_names[i:i + 20] for i in range(0, len(remaining_names), 20)]
         still_missing = []
         
@@ -169,7 +172,6 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
                         if orig_lower in found_in_batch:
                             continue
                             
-                        # Universeller Abgleich für reguläre Kaskade
                         for card in data.get('data', []):
                             card_name = card['name'].lower()
                             faces = [f.strip() for f in card_name.split('//')]
@@ -191,7 +193,7 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
         remaining_names = list(dict.fromkeys(still_missing))
         current_step += 1
         
-    error_log = {name: "Nicht gefunden" for name in remaining_names}
+    error_log = {name: "Card not found" for name in remaining_names}
     
     card_metadata = []
     for name, count in deck_dict.items():
@@ -246,7 +248,7 @@ def generate_deck_pdf(deck_dict, output_filename, lang, art_style, set_code, fan
     card_metadata, error_log = get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_style, set_code, fancy_mode)
     
     if not card_metadata:
-        status_text.text("Keine Karten gefunden.")
+        status_text.text("No cards found.")
         return error_log, 0
         
     def sort_key(c):
@@ -266,7 +268,7 @@ def generate_deck_pdf(deck_dict, output_filename, lang, art_style, set_code, fan
         
     card_metadata.sort(key=sort_key)
     
-    status_text.text("Verarbeite Bilddateien und generiere PDF...")
+    status_text.text("Processing card images and building PDF...")
     progress_bar.progress(0.0)
     
     c = canvas.Canvas(output_filename, pagesize=A4)
@@ -314,55 +316,64 @@ def generate_deck_pdf(deck_dict, output_filename, lang, art_style, set_code, fan
 
     if images_added > 0:
         c.save()
-        status_text.text("PDF-Generierung erfolgreich abgeschlossen.")
+        status_text.text("PDF generated successfully.")
         
     return error_log, images_added
 
 # ==========================================
-# STREAMLIT BENUTZEROBERFLÄCHE
+# STREAMLIT USER INTERFACE
 # ==========================================
 
 st.set_page_config(page_title="Proxyfy Beta by Nefpo", layout="wide")
 
 st.title("Proxyfy Beta by Nefpo")
-st.write("Generiere druckfertige PDFs in verlustfreier PNG-Qualität.")
+st.write("Generate print-ready PDFs with lossless PNG quality.")
 
 with st.sidebar:
-    st.header("Spezifikationen")
+    st.header("Specifications")
     
-    fancy_mode = st.checkbox("Fancy (Teuerstes/Seltenstes Artwork)", value=False)
-    cut_basic_lands = st.checkbox("Standardländer ausschneiden", value=False)
+    fancy_mode = st.checkbox("Fancy (Highest Value Artwork)", value=False)
+    cut_basic_lands = st.checkbox("Cut Basic Lands", value=False)
     
-    lang_input = st.selectbox("Sprache bevorzugt", ["English (en)", "Deutsch (de)", "Japanisch (ja)", "Französisch (fr)", "Spanisch (es)"])
+    lang_input = st.selectbox("Preferred Language", ["English (en)", "German (de)", "Japanese (ja)", "French (fr)", "Spanish (es)"])
     lang_code = lang_input.split("(")[1].replace(")", "")
     
-    art_style = st.selectbox("Design überschreiben", ["Standard", "Extended Art", "Borderless", "Showcase", "Retro"])
-    set_code = st.text_input("Spezifisches Set (Optional, z.B. 'mh2' oder '40k')", value="")
+    art_style = st.selectbox("Override Frame / Art Style", ["Standard", "Extended Art", "Borderless", "Showcase", "Retro"])
+    set_code = st.text_input("Specific Set Code (Optional, e.g. 'mh2' or '40k')", value="")
 
-decklist_input = st.text_area("Füge deine Deckliste hier ein:", height=300)
+decklist_input = st.text_area("Paste your decklist here:", height=300)
 
-if st.button("PDF Generieren", type="primary", use_container_width=True):
+if st.button("Generate PDF", type="primary", use_container_width=True):
     if decklist_input.strip() == "":
-        st.error("Bitte gib eine Deckliste ein.")
+        st.error("Please enter a decklist first.")
     else:
         deck_dict = parse_decklist(decklist_input, cut_basic_lands)
         pdf_filename = "Proxyfy_Deck.pdf"
         
-        with st.spinner("Lade Kartendaten im Smart-Cascade-Modus..."):
+        with st.spinner("Fetching card data from Scryfall..."):
             error_log, images_added = generate_deck_pdf(deck_dict, pdf_filename, lang_code, art_style, set_code.strip(), fancy_mode)
         
         if error_log:
-            st.warning("Folgende Karten verursachten Fehler:")
+            st.warning("The following cards could not be found:")
             for card, err in error_log.items():
                 st.write(f"- {card}: {err}")
         
         if images_added > 0 and os.path.exists(pdf_filename):
             with open(pdf_filename, "rb") as pdf_file:
                 st.download_button(
-                    label="PDF herunterladen",
+                    label="Download PDF",
                     data=pdf_file,
                     file_name="Proxyfy_Deck.pdf",
                     mime="application/pdf",
                     use_container_width=True
                 )
-            st.success(f"Erfolg: {images_added} Karten generiert.")
+            st.success(f"Success: {images_added} cards generated.")
+
+# Future ad placement placeholder
+#st.markdown("---")
+#st.markdown("### Sponsor / Advertisement")
+#col_ad1, col_ad2 = st.columns([3, 1])
+#with col_ad1:
+#    st.info("Space reserved for future partners and sponsors.")
+#with col_ad2:
+#    st.write("Ad (Placeholder)")
