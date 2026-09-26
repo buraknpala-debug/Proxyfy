@@ -48,96 +48,147 @@ def parse_decklist(decklist_text):
         
     return deck_dict
 
-def get_scryfall_bulk_data(deck_dict, progress_bar, status_text, lang, art_style, set_code):
-    """Nutzt die Scryfall Collection API in sicheren 50er-Blöcken inklusive Sprach- und Design-Steuerung."""
-    headers = {'User-Agent': 'Proxyfy/Beta-Bulk', 'Accept': 'application/json'}
-    
-    card_metadata = []
+def get_card_data_batch_cascade(deck_dict, progress_bar, status_text, lang, art_style, set_code):
+    """Sucht kaskadierend in 20er-Batches mit OR-Verknüpfung. Gefundene Karten werden sofort herausgefiltert."""
+    headers = {'User-Agent': 'Proxyfy/Batch-Cascade', 'Accept': 'application/json'}
+    fetched_cards = {}
     error_log = {}
     
-    identifiers = [{"name": name} for name in deck_dict.keys()]
-    chunks = [identifiers[i:i + 50] for i in range(0, len(identifiers), 50)]
+    remaining_names = list(deck_dict.keys())
+    total_cards = len(remaining_names)
     
-    total_chunks = len(chunks)
-    fetched_cards = {}
+    art_map = {
+        "Borderless": "is:borderless",
+        "Showcase": "is:showcase",
+        "Retro": "is:retro",
+        "Extended Art": "is:extendedart"
+    }
     
-    for idx, chunk in enumerate(chunks):
-        status_text.text(f"Lade Kartengruppe {idx + 1} von {total_chunks}...")
-        try:
-            response = requests.post(
-                "https://api.scryfall.com/cards/collection",
-                json={"identifiers": chunk},
-                headers=headers
-            )
+    # Kaskaden-Stufen definieren (von Spezialwunsch bis Standard-Fallback)
+    cascade_steps = []
+    
+    # Stufe 1: Exakter Wunsch (Stil + Set + Sprache)
+    step1 = {}
+    if art_style != "Standard" and art_style in art_map: step1['style'] = art_map[art_style]
+    if set_code: step1['set'] = set_code
+    if lang != 'en': step1['lang'] = lang
+    cascade_steps.append(step1)
+    
+    # Stufe 2: Nur Stil + Sprache (ohne Set-Erzwingung, falls das Set die Version nicht hat)
+    if art_style != "Standard" and art_style in art_map and set_code:
+        cascade_steps.append({'style': art_map[art_style], 'lang': lang if lang != 'en' else None})
+        
+    # Stufe 3: Nur Set + Sprache (Standard-Stil im gewünschten Set)
+    if set_code:
+        cascade_steps.append({'set': set_code, 'lang': lang if lang != 'en' else None})
+        
+    # Stufe 4: Nur Sprache (Standard)
+    if lang != 'en':
+        cascade_steps.append({'lang': lang})
+        
+    # Stufe 5: Globaler Standard-Fallback (Englisch, Standard-Stil)
+    cascade_steps.append({})
+    
+    current_step = 1
+    total_steps = len(cascade_steps)
+    
+    for step_filters in cascade_steps:
+        if not remaining_names:
+            break
             
-            if response.status_code == 200:
-                data = response.json()
-                for card in data.get('data', []):
-                    fetched_cards[card['name'].lower()] = card
-                for not_found in data.get('not_found', []):
-                    error_log[not_found.get('name', 'Unbekannt')] = "In der Collection nicht gefunden"
-            else:
-                for item in chunk:
-                    error_log[item['name']] = f"HTTP Fehler {response.status_code}"
-        except Exception as e:
-            for item in chunk:
-                error_log[item['name']] = str(e)
+        status_text.text(f"Such-Kaskade Stufe {current_step}/{total_steps} ({len(remaining_names)} Karten übrig)...")
+        
+        # In 20er-Blöcke aufteilen (damit die URL-Länge für OR-Abfragen sicher bleibt)
+        chunks = [remaining_names[i:i + 20] for i in range(0, len(remaining_names), 20)]
+        
+        still_missing = []
+        
+        for chunk in chunks:
+            # Baue OR-Abfrage: ("Card A" OR "Card B" OR "Card C")
+            or_query = " OR ".join([f'!"{name}"' for name in chunk])
+            q = f"({or_query})"
+            
+            if 'style' in step_filters and step_filters['style']:
+                q += f" {step_filters['style']}"
+            if 'set' in step_filters and step_filters['set']:
+                q += f" e:{step_filters['set']}"
+            if 'lang' in step_filters and step_filters['lang']:
+                q += f" lang:{step_filters['lang']}"
                 
-        progress_bar.progress((idx + 1) / total_chunks)
-        time.sleep(0.15)
-        
-    for name, count in deck_dict.items():
-        card_data = fetched_cards.get(name.lower())
-        
-        # Falls Sprache oder Set/Design erzwungen wird, über die Such-API nachsteuern falls nötig
-        if card_data and (lang != 'en' or art_style != "Standard" or set_code):
-            q = f'!"{name}"'
-            if lang != 'en': q += f' lang:{lang}'
-            if set_code: q += f' e:{set_code}'
-            art_map = {"Borderless": "is:borderless", "Showcase": "is:showcase", "Retro": "is:retro", "Extended Art": "is:extendedart"}
-            if art_style != "Standard": q += f' {art_map[art_style]}'
-            
+            time.sleep(0.15)
             try:
-                res = requests.get("https://api.scryfall.com/cards/search", params={'q': q}, headers=headers)
-                if res.status_code == 200:
-                    search_data = res.json()
-                    if 'data' in search_data and len(search_data['data']) > 0:
-                        card_data = search_data['data'][0]
-            except Exception:
-                pass
-
-        if not card_data:
-            if name not in error_log:
-                error_log[name] = "Nicht gefunden"
-            continue
-            
-        type_line = card_data.get('type_line', '')
-        colors = card_data.get('colors')
-        if colors is None and 'card_faces' in card_data:
-            colors = card_data['card_faces'][0].get('colors', [])
-        
-        img_urls = []
-        if 'image_uris' in card_data:
-            img_urls.append(card_data['image_uris'].get('png', card_data['image_uris'].get('large')))
-        elif 'card_faces' in card_data:
-            for face in card_data['card_faces']:
-                face_url = face.get('image_uris', {}).get('png', face.get('image_uris', {}).get('large'))
-                if face_url:
-                    img_urls.append(face_url)
+                response = requests.get("https://api.scryfall.com/cards/search", params={'q': q}, headers=headers)
+                if response.status_code == 200:
+                    data = response.json()
+                    found_in_batch = set()
                     
-        if img_urls:
-            card_metadata.append({
-                'name': name,
-                'urls': img_urls,
-                'type': type_line,
-                'colors': colors if colors else [],
-                'count': count
-            })
-            
+                    for card in data.get('data', []):
+                        card_name_lower = card['name'].lower()
+                        # Suche das originale Key aus dem Chunk (Case-insensitive Abgleich)
+                        for orig_name in chunk:
+                            if orig_name.lower() == card_name_lower and orig_name not in fetched_cards:
+                                fetched_cards[orig_name] = card
+                                found_in_batch.add(orig_name.lower())
+                                break
+                                
+                    # Prüfen, welche Karten aus diesem Chunk immer noch fehlen
+                    for orig_name in chunk:
+                        if orig_name.lower() not in found_in_batch:
+                            # Schauen wir nach, ob sie vielleicht als Multiseitige Karte matchten
+                            matched = False
+                            for fn, cd in fetched_cards.items():
+                                if fn.lower() == orig_name.lower():
+                                    matched = True
+                                    break
+                            if not matched:
+                                still_missing.append(orig_name)
+                else:
+                    # Wenn die Batch-Suche fehlschlägt, geben wir die Chunk-Karten an die nächste Stufe weiter
+                    still_missing.extend(chunk)
+            except Exception:
+                still_missing.extend(chunk)
+                
+        remaining_names = list(dict.fromkeys(still_missing)) # Duplikate entfernen
+        current_step += 1
+        
+    # Restliche, absolut nicht auffindbare Karten ins Error-Log schreiben
+    error_log = {name: "Nicht gefunden (auch nach Kaskadierung)" for name in remaining_names}
+    
+    # In das finale Metadaten-Format umwandeln
+    card_metadata = []
+    for name, count in deck_dict.items():
+        if name in fetched_cards:
+            card_data = fetched_cards[name]
+            type_line = card_data.get('type_line', '')
+            colors = card_data.get('colors')
+            if colors is None and 'card_faces' in card_data:
+                colors = card_data['card_faces'][0].get('colors', [])
+            if colors is None:
+                colors = []
+                
+            img_urls = []
+            if 'image_uris' in card_data:
+                img_urls.append(card_data['image_uris'].get('png', card_data['image_uris'].get('large')))
+            elif 'card_faces' in card_data:
+                for face in card_data['card_faces']:
+                    face_url = face.get('image_uris', {}).get('png', face.get('image_uris', {}).get('large'))
+                    if face_url:
+                        img_urls.append(face_url)
+                        
+            if img_urls:
+                card_metadata.append({
+                    'name': name,
+                    'urls': img_urls,
+                    'type': type_line,
+                    'colors': colors,
+                    'count': count
+                })
+                
+    progress_bar.progress(1.0)
     return card_metadata, error_log
 
 def download_image(url):
-    headers = {'User-Agent': 'Proxyfy/Beta-Bulk'}
+    headers = {'User-Agent': 'Proxyfy/Batch-Cascade'}
     img_response = requests.get(url, headers=headers)
     img = Image.open(BytesIO(img_response.content)).convert("RGBA")
     
@@ -154,7 +205,7 @@ def generate_deck_pdf(deck_dict, output_filename, lang, art_style, set_code):
     progress_bar = st.progress(0)
     status_text = st.empty()
     
-    card_metadata, error_log = get_scryfall_bulk_data(deck_dict, progress_bar, status_text, lang, art_style, set_code)
+    card_metadata, error_log = get_card_data_batch_cascade(deck_dict, progress_bar, status_text, lang, art_style, set_code)
     
     if not card_metadata:
         status_text.text("Keine Karten gefunden.")
@@ -238,7 +289,6 @@ st.set_page_config(page_title="Proxyfy Beta by Nefpo", layout="wide")
 st.title("Proxyfy Beta by Nefpo")
 st.write("Generiere druckfertige PDFs in verlustfreier PNG-Qualität.")
 
-# Seitenleiste für Einstellungen (Sprache, Design, Edition)
 with st.sidebar:
     st.header("Spezifikationen")
     lang_input = st.selectbox("Sprache bevorzugt", ["English (en)", "Deutsch (de)", "Japanisch (ja)", "Französisch (fr)", "Spanisch (es)"])
@@ -247,18 +297,16 @@ with st.sidebar:
     art_style = st.selectbox("Design überschreiben", ["Standard", "Extended Art", "Borderless", "Showcase", "Retro"])
     set_code = st.text_input("Spezifisches Set (Optional, z.B. 'mh2' oder '40k')", value="")
 
-# Hauptbereich für Deckliste und Generierung
 decklist_input = st.text_area("Füge deine Deckliste hier ein:", height=300)
 
 if st.button("PDF Generieren", type="primary", use_container_width=True):
     if decklist_input.strip() == "":
         st.error("Bitte gib eine Deckliste ein.")
     else:
-    # Restlicher Ablauf
         deck_dict = parse_decklist(decklist_input)
         pdf_filename = "Proxyfy_Deck.pdf"
         
-        with st.spinner("Lade Kartendaten..."):
+        with st.spinner("Lade Kartendaten im Batch-Cascade-Modus..."):
             error_log, images_added = generate_deck_pdf(deck_dict, pdf_filename, lang_code, art_style, set_code.strip())
         
         if error_log:
@@ -277,7 +325,7 @@ if st.button("PDF Generieren", type="primary", use_container_width=True):
                 )
             st.success(f"Erfolg: {images_added} Karten generiert.")
 
-# Dezent platzierter Werbe- und Sponsorenbereich am unteren Rand
+# Auskommentierter Werbebereich am unteren Rand
 #st.markdown("---")
 #st.markdown("### Sponsor / Werbung")
 #col_ad1, col_ad2 = st.columns([3, 1])
