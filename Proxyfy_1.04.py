@@ -48,14 +48,12 @@ def parse_decklist(decklist_text):
         
     return deck_dict
 
-def get_card_data_batch_cascade(deck_dict, progress_bar, status_text, lang, art_style, set_code):
-    """Sucht kaskadierend in 20er-Batches mit OR-Verknüpfung. Gefundene Karten werden sofort herausgefiltert."""
-    headers = {'User-Agent': 'Proxyfy/Batch-Cascade', 'Accept': 'application/json'}
+def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_style, set_code, fancy_mode):
+    headers = {'User-Agent': 'Proxyfy/Smart-Cascade', 'Accept': 'application/json'}
     fetched_cards = {}
     error_log = {}
     
     remaining_names = list(deck_dict.keys())
-    total_cards = len(remaining_names)
     
     art_map = {
         "Borderless": "is:borderless",
@@ -64,47 +62,99 @@ def get_card_data_batch_cascade(deck_dict, progress_bar, status_text, lang, art_
         "Extended Art": "is:extendedart"
     }
     
-    # Kaskaden-Stufen definieren (von Spezialwunsch bis Standard-Fallback)
+    # Kaskaden-Stufen aufbauen
     cascade_steps = []
     
-    # Stufe 1: Exakter Wunsch (Stil + Set + Sprache)
-    step1 = {}
-    if art_style != "Standard" and art_style in art_map: step1['style'] = art_map[art_style]
-    if set_code: step1['set'] = set_code
-    if lang != 'en': step1['lang'] = lang
-    cascade_steps.append(step1)
+    # Stufe 1: Wenn Fancy an ist, suchen wir zuerst nach allen Printings, um das teuerste zu finden
+    # (Das wird im Suchschritt separat behandelt)
     
-    # Stufe 2: Nur Stil + Sprache (ohne Set-Erzwingung, falls das Set die Version nicht hat)
+    # Stufe 2: Exakter Design- / Set-Wunsch
+    step_custom = {}
+    if art_style != "Standard" and art_style in art_map: 
+        step_custom['style'] = art_map[art_style]
+    if set_code: 
+        step_custom['set'] = set_code
+    if lang != 'en': 
+        step_custom['lang'] = lang
+    if step_custom:
+        cascade_steps.append(step_custom)
+        
+    # Stufe 3: Nur Stil (falls das spezifische Set versagt)
     if art_style != "Standard" and art_style in art_map and set_code:
         cascade_steps.append({'style': art_map[art_style], 'lang': lang if lang != 'en' else None})
         
-    # Stufe 3: Nur Set + Sprache (Standard-Stil im gewünschten Set)
+    # Stufe 4: Nur Set-Fallback
     if set_code:
         cascade_steps.append({'set': set_code, 'lang': lang if lang != 'en' else None})
         
-    # Stufe 4: Nur Sprache (Standard)
+    # Stufe 5: Sprache oder Standard
     if lang != 'en':
         cascade_steps.append({'lang': lang})
         
-    # Stufe 5: Globaler Standard-Fallback (Englisch, Standard-Stil)
+    # Stufe 6: Letzter Fallback (Standard-Englisch)
     cascade_steps.append({})
     
     current_step = 1
-    total_steps = len(cascade_steps)
+    total_steps = len(cascade_steps) + (1 if fancy_mode else 0)
     
+    # SONDERFALL: Fancy-Modus (Teueste Version über alle Printings ermitteln)
+    if fancy_mode:
+        status_text.text("Analysiere Kartendaten für den Fancy-Modus (teuerste Artworks)...")
+        still_missing = []
+        chunks = [remaining_names[i:i + 20] for i in range(0, len(remaining_names), 20)]
+        
+        for chunk in chunks:
+            or_query = " OR ".join([f'!"{name}"' for name in chunk])
+            q = f"({or_query})"
+            if set_code: q += f" e:{set_code}"
+            
+            time.sleep(0.15)
+            try:
+                response = requests.get("https://api.scryfall.com/cards/search", params={'q': q, 'unique': 'prints'}, headers=headers)
+                if response.status_code == 200:
+                    data = response.json()
+                    # Gruppiere Prints nach Kartennamen
+                    card_prints = {}
+                    for card in data.get('data', []):
+                        c_name = card['name'].lower()
+                        if c_name not in card_prints:
+                            card_prints[c_name] = []
+                        card_prints[c_name].append(card)
+                        
+                    for orig_name in chunk:
+                        key_l = orig_name.lower()
+                        if key_l in card_prints:
+                            prints = card_prints[key_l]
+                            # Sortiere nach Preis (USD), nimm die teuerste Version
+                            def get_price(c):
+                                prices = c.get('prices', {})
+                                p = prices.get('usd') or prices.get('usd_foil') or prices.get('eur') or "0"
+                                try:
+                                    return float(p)
+                                except:
+                                    return 0.0
+                            prints.sort(key=get_price, reverse=True)
+                            fetched_cards[orig_name] = prints[0]
+                        else:
+                            still_missing.append(orig_name)
+                else:
+                    still_missing.extend(chunk)
+            except:
+                still_missing.extend(chunk)
+                
+        remaining_names = list(dict.fromkeys(still_missing))
+        current_step += 1
+
+    # Standard- oder Design-Kaskade für alle noch fehlenden Karten
     for step_filters in cascade_steps:
         if not remaining_names:
             break
             
-        status_text.text(f"Such-Kaskade Stufe {current_step}/{total_steps} ({len(remaining_names)} Karten übrig)...")
-        
-        # In 20er-Blöcke aufteilen (damit die URL-Länge für OR-Abfragen sicher bleibt)
+        status_text.text(f"Such-Kaskade Stufe {current_step}/{total_steps + len(cascade_steps)} ({len(remaining_names)} Karten übrig)...")
         chunks = [remaining_names[i:i + 20] for i in range(0, len(remaining_names), 20)]
-        
         still_missing = []
         
         for chunk in chunks:
-            # Baue OR-Abfrage: ("Card A" OR "Card B" OR "Card C")
             or_query = " OR ".join([f'!"{name}"' for name in chunk])
             q = f"({or_query})"
             
@@ -124,37 +174,31 @@ def get_card_data_batch_cascade(deck_dict, progress_bar, status_text, lang, art_
                     
                     for card in data.get('data', []):
                         card_name_lower = card['name'].lower()
-                        # Suche das originale Key aus dem Chunk (Case-insensitive Abgleich)
                         for orig_name in chunk:
                             if orig_name.lower() == card_name_lower and orig_name not in fetched_cards:
                                 fetched_cards[orig_name] = card
                                 found_in_batch.add(orig_name.lower())
                                 break
                                 
-                    # Prüfen, welche Karten aus diesem Chunk immer noch fehlen
                     for orig_name in chunk:
                         if orig_name.lower() not in found_in_batch:
-                            # Schauen wir nach, ob sie vielleicht als Multiseitige Karte matchten
                             matched = False
-                            for fn, cd in fetched_cards.items():
+                            for fn in fetched_cards.keys():
                                 if fn.lower() == orig_name.lower():
                                     matched = True
                                     break
                             if not matched:
                                 still_missing.append(orig_name)
                 else:
-                    # Wenn die Batch-Suche fehlschlägt, geben wir die Chunk-Karten an die nächste Stufe weiter
                     still_missing.extend(chunk)
             except Exception:
                 still_missing.extend(chunk)
                 
-        remaining_names = list(dict.fromkeys(still_missing)) # Duplikate entfernen
+        remaining_names = list(dict.fromkeys(still_missing))
         current_step += 1
         
-    # Restliche, absolut nicht auffindbare Karten ins Error-Log schreiben
-    error_log = {name: "Nicht gefunden (auch nach Kaskadierung)" for name in remaining_names}
+    error_log = {name: "Nicht gefunden" for name in remaining_names}
     
-    # In das finale Metadaten-Format umwandeln
     card_metadata = []
     for name, count in deck_dict.items():
         if name in fetched_cards:
@@ -188,7 +232,7 @@ def get_card_data_batch_cascade(deck_dict, progress_bar, status_text, lang, art_
     return card_metadata, error_log
 
 def download_image(url):
-    headers = {'User-Agent': 'Proxyfy/Batch-Cascade'}
+    headers = {'User-Agent': 'Proxyfy/Smart-Cascade'}
     img_response = requests.get(url, headers=headers)
     img = Image.open(BytesIO(img_response.content)).convert("RGBA")
     
@@ -201,11 +245,11 @@ def download_image(url):
     background.paste(img, mask=mask)
     return background
 
-def generate_deck_pdf(deck_dict, output_filename, lang, art_style, set_code):
+def generate_deck_pdf(deck_dict, output_filename, lang, art_style, set_code, fancy_mode):
     progress_bar = st.progress(0)
     status_text = st.empty()
     
-    card_metadata, error_log = get_card_data_batch_cascade(deck_dict, progress_bar, status_text, lang, art_style, set_code)
+    card_metadata, error_log = get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_style, set_code, fancy_mode)
     
     if not card_metadata:
         status_text.text("Keine Karten gefunden.")
@@ -291,6 +335,10 @@ st.write("Generiere druckfertige PDFs in verlustfreier PNG-Qualität.")
 
 with st.sidebar:
     st.header("Spezifikationen")
+    
+    # Der neue Fancy-Regler
+    fancy_mode = st.checkbox("Fancy (Teuerstes/Seltenstes Artwork)", value=False)
+    
     lang_input = st.selectbox("Sprache bevorzugt", ["English (en)", "Deutsch (de)", "Japanisch (ja)", "Französisch (fr)", "Spanisch (es)"])
     lang_code = lang_input.split("(")[1].replace(")", "")
     
@@ -306,8 +354,8 @@ if st.button("PDF Generieren", type="primary", use_container_width=True):
         deck_dict = parse_decklist(decklist_input)
         pdf_filename = "Proxyfy_Deck.pdf"
         
-        with st.spinner("Lade Kartendaten im Batch-Cascade-Modus..."):
-            error_log, images_added = generate_deck_pdf(deck_dict, pdf_filename, lang_code, art_style, set_code.strip())
+        with st.spinner("Lade Kartendaten im Smart-Cascade-Modus..."):
+            error_log, images_added = generate_deck_pdf(deck_dict, pdf_filename, lang_code, art_style, set_code.strip(), fancy_mode)
         
         if error_log:
             st.warning("Folgende Karten verursachten Fehler:")
