@@ -46,7 +46,6 @@ def parse_decklist(decklist_text, cut_basic_lands=False):
         name = name.replace('*', '').strip()
         name = name.split(' / ')[0].split(' // ')[0].strip()
         
-        # Wenn Option aktiv ist, Standardländer überspringen
         if cut_basic_lands and name.lower() in basic_lands:
             continue
         
@@ -109,26 +108,26 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
                 response = requests.get("https://api.scryfall.com/cards/search", params={'q': q, 'unique': 'prints'}, headers=headers)
                 if response.status_code == 200:
                     data = response.json()
-                    card_prints = {}
-                    for card in data.get('data', []):
-                        c_name = card['name'].lower()
-                        if c_name not in card_prints:
-                            card_prints[c_name] = []
-                        card_prints[c_name].append(card)
-                        
+                    
                     for orig_name in chunk:
-                        key_l = orig_name.lower()
-                        if key_l in card_prints:
-                            prints = card_prints[key_l]
+                        orig_lower = orig_name.lower()
+                        matching_prints = []
+                        
+                        # Universeller Abgleich für MDFCs und Split-Karten
+                        for card in data.get('data', []):
+                            card_name = card['name'].lower()
+                            faces = [f.strip() for f in card_name.split('//')]
+                            if orig_lower == card_name or orig_lower in faces:
+                                matching_prints.append(card)
+                                
+                        if matching_prints:
                             def get_price(c):
                                 prices = c.get('prices', {})
                                 p = prices.get('usd') or prices.get('usd_foil') or prices.get('eur') or "0"
-                                try:
-                                    return float(p)
-                                except:
-                                    return 0.0
-                            prints.sort(key=get_price, reverse=True)
-                            fetched_cards[orig_name] = prints[0]
+                                try: return float(p)
+                                except: return 0.0
+                            matching_prints.sort(key=get_price, reverse=True)
+                            fetched_cards[orig_name] = matching_prints[0]
                         else:
                             still_missing.append(orig_name)
                 else:
@@ -165,23 +164,25 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
                     data = response.json()
                     found_in_batch = set()
                     
-                    for card in data.get('data', []):
-                        card_name_lower = card['name'].lower()
-                        for orig_name in chunk:
-                            if orig_name.lower() == card_name_lower and orig_name not in fetched_cards:
-                                fetched_cards[orig_name] = card
-                                found_in_batch.add(orig_name.lower())
+                    for orig_name in chunk:
+                        orig_lower = orig_name.lower()
+                        if orig_lower in found_in_batch:
+                            continue
+                            
+                        # Universeller Abgleich für reguläre Kaskade
+                        for card in data.get('data', []):
+                            card_name = card['name'].lower()
+                            faces = [f.strip() for f in card_name.split('//')]
+                            
+                            if orig_lower == card_name or orig_lower in faces:
+                                if orig_name not in fetched_cards:
+                                    fetched_cards[orig_name] = card
+                                found_in_batch.add(orig_lower)
                                 break
                                 
                     for orig_name in chunk:
                         if orig_name.lower() not in found_in_batch:
-                            matched = False
-                            for fn in fetched_cards.keys():
-                                if fn.lower() == orig_name.lower():
-                                    matched = True
-                                    break
-                            if not matched:
-                                still_missing.append(orig_name)
+                            still_missing.append(orig_name)
                 else:
                     still_missing.extend(chunk)
             except Exception:
@@ -329,7 +330,6 @@ st.write("Generiere druckfertige PDFs in verlustfreier PNG-Qualität.")
 with st.sidebar:
     st.header("Spezifikationen")
     
-    # Die beiden Regler in der Sidebar
     fancy_mode = st.checkbox("Fancy (Teuerstes/Seltenstes Artwork)", value=False)
     cut_basic_lands = st.checkbox("Standardländer ausschneiden", value=False)
     
@@ -366,12 +366,3 @@ if st.button("PDF Generieren", type="primary", use_container_width=True):
                     use_container_width=True
                 )
             st.success(f"Erfolg: {images_added} Karten generiert.")
-
-# Auskommentierter Werbebereich am unteren Rand
-#st.markdown("---")
-#st.markdown("### Sponsor / Werbung")
-#col_ad1, col_ad2 = st.columns([3, 1])
-#with col_ad1:
-#    st.info("Platzhalter für zukünftige Banner oder Werbepartner. Perfekt geeignet, um die Anwendung bei einem Online-Release zu unterstützen.")
-#with col_ad2:
-#    st.write("Anzeige (Platzhalter)")
