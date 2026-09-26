@@ -18,8 +18,10 @@ MARGIN_X = 10 * mm
 MARGIN_Y = 15 * mm
 SPACING = 2 * mm 
 
-def parse_decklist(decklist_text):
+def parse_decklist(decklist_text, cut_basic_lands=False):
     deck_dict = {}
+    basic_lands = {"forest", "mountain", "plains", "island", "swamp", "snow-covered forest", "snow-covered mountain", "snow-covered plains", "snow-covered island", "snow-covered swamp"}
+    
     lines = decklist_text.strip().split('\n')
     for line in lines:
         line = line.strip()
@@ -44,6 +46,10 @@ def parse_decklist(decklist_text):
         name = name.replace('*', '').strip()
         name = name.split(' / ')[0].split(' // ')[0].strip()
         
+        # Wenn Option aktiv ist, Standardländer überspringen
+        if cut_basic_lands and name.lower() in basic_lands:
+            continue
+        
         deck_dict[name] = deck_dict.get(name, 0) + count
         
     return deck_dict
@@ -62,13 +68,8 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
         "Extended Art": "is:extendedart"
     }
     
-    # Kaskaden-Stufen aufbauen
     cascade_steps = []
     
-    # Stufe 1: Wenn Fancy an ist, suchen wir zuerst nach allen Printings, um das teuerste zu finden
-    # (Das wird im Suchschritt separat behandelt)
-    
-    # Stufe 2: Exakter Design- / Set-Wunsch
     step_custom = {}
     if art_style != "Standard" and art_style in art_map: 
         step_custom['style'] = art_map[art_style]
@@ -79,25 +80,20 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
     if step_custom:
         cascade_steps.append(step_custom)
         
-    # Stufe 3: Nur Stil (falls das spezifische Set versagt)
     if art_style != "Standard" and art_style in art_map and set_code:
         cascade_steps.append({'style': art_map[art_style], 'lang': lang if lang != 'en' else None})
         
-    # Stufe 4: Nur Set-Fallback
     if set_code:
         cascade_steps.append({'set': set_code, 'lang': lang if lang != 'en' else None})
         
-    # Stufe 5: Sprache oder Standard
     if lang != 'en':
         cascade_steps.append({'lang': lang})
         
-    # Stufe 6: Letzter Fallback (Standard-Englisch)
     cascade_steps.append({})
     
     current_step = 1
     total_steps = len(cascade_steps) + (1 if fancy_mode else 0)
     
-    # SONDERFALL: Fancy-Modus (Teueste Version über alle Printings ermitteln)
     if fancy_mode:
         status_text.text("Analysiere Kartendaten für den Fancy-Modus (teuerste Artworks)...")
         still_missing = []
@@ -113,7 +109,6 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
                 response = requests.get("https://api.scryfall.com/cards/search", params={'q': q, 'unique': 'prints'}, headers=headers)
                 if response.status_code == 200:
                     data = response.json()
-                    # Gruppiere Prints nach Kartennamen
                     card_prints = {}
                     for card in data.get('data', []):
                         c_name = card['name'].lower()
@@ -125,7 +120,6 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
                         key_l = orig_name.lower()
                         if key_l in card_prints:
                             prints = card_prints[key_l]
-                            # Sortiere nach Preis (USD), nimm die teuerste Version
                             def get_price(c):
                                 prices = c.get('prices', {})
                                 p = prices.get('usd') or prices.get('usd_foil') or prices.get('eur') or "0"
@@ -145,7 +139,6 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
         remaining_names = list(dict.fromkeys(still_missing))
         current_step += 1
 
-    # Standard- oder Design-Kaskade für alle noch fehlenden Karten
     for step_filters in cascade_steps:
         if not remaining_names:
             break
@@ -336,8 +329,9 @@ st.write("Generiere druckfertige PDFs in verlustfreier PNG-Qualität.")
 with st.sidebar:
     st.header("Spezifikationen")
     
-    # Der neue Fancy-Regler
+    # Die beiden Regler in der Sidebar
     fancy_mode = st.checkbox("Fancy (Teuerstes/Seltenstes Artwork)", value=False)
+    cut_basic_lands = st.checkbox("Standardländer ausschneiden", value=False)
     
     lang_input = st.selectbox("Sprache bevorzugt", ["English (en)", "Deutsch (de)", "Japanisch (ja)", "Französisch (fr)", "Spanisch (es)"])
     lang_code = lang_input.split("(")[1].replace(")", "")
@@ -351,7 +345,7 @@ if st.button("PDF Generieren", type="primary", use_container_width=True):
     if decklist_input.strip() == "":
         st.error("Bitte gib eine Deckliste ein.")
     else:
-        deck_dict = parse_decklist(decklist_input)
+        deck_dict = parse_decklist(decklist_input, cut_basic_lands)
         pdf_filename = "Proxyfy_Deck.pdf"
         
         with st.spinner("Lade Kartendaten im Smart-Cascade-Modus..."):
