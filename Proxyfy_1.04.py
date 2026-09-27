@@ -447,6 +447,44 @@ st.markdown("""
         box-shadow: 0 0 4px #FCEE0A40 !important;
     }
 
+    /* PUSH-TO-BOTTOM ALIGNMENT FIX FÜR ALLE BUTTONS IN SPALTEN */
+    div[data-testid="column"] > div {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+    div[data-testid="column"] div[data-testid="stButton"] {
+        margin-top: auto !important;
+    }
+
+    /* BILDER-FORMAT FIX (Zwingt alle Bilder ins exakte MTG-Format) */
+    div[data-testid="stImage"] img {
+        width: 100% !important;
+        height: auto !important;
+        aspect-ratio: 63 / 88 !important;
+        object-fit: contain !important;
+        display: block;
+        border: 1px solid #222222;
+        transition: all 0.2s;
+    }
+    div[data-testid="stImage"] img:hover {
+        border: 1px solid #FCEE0A;
+        box-shadow: 0 0 6px #FCEE0A40;
+        transform: scale(1.01);
+    }
+    
+    /* STICKY ASSIGNMENT BAR FIX (Damit die Leiste beim Scrollen oben andockt) */
+    div[data-testid="stHorizontalBlock"]:has(div[data-testid="stNumberInput"]) {
+        position: sticky !important;
+        top: 55px !important;
+        z-index: 9999 !important;
+        background-color: #050505 !important;
+        padding: 15px !important;
+        border: 1px solid #FCEE0A !important;
+        box-shadow: 0px 5px 15px rgba(0,0,0,0.8) !important;
+        margin-bottom: 20px !important;
+    }
+
     div[data-testid="stButton"] > button[kind="primary"] {
         background-color: transparent !important;
         color: #FCEE0A !important;
@@ -475,34 +513,6 @@ st.markdown("""
         border: 1px solid #FCEE0A !important;
         color: #FCEE0A !important;
         box-shadow: 0 0 5px #FCEE0A40 !important;
-    }
-    
-    div[data-testid="stFormSubmitButton"] > button {
-        background-color: transparent !important;
-        color: #FCEE0A !important;
-        border: 1px solid #FCEE0A !important;
-        border-radius: 0px !important;
-        width: 100%;
-    }
-    div[data-testid="stFormSubmitButton"] > button:hover {
-        background-color: #FCEE0A !important;
-        color: #000000 !important;
-    }
-
-    /* FIX: Image Grid Alignment für Mobile und iPad */
-    [data-testid="column"] img {
-        width: 100% !important;
-        height: auto !important;
-        aspect-ratio: 63 / 88 !important;
-        object-fit: contain !important;
-        display: block;
-        border: 1px solid #222222;
-        transition: all 0.2s;
-    }
-    [data-testid="column"] img:hover {
-        border: 1px solid #FCEE0A;
-        box-shadow: 0 0 6px #FCEE0A40;
-        transform: scale(1.01);
     }
     
     .stProgress > div > div > div > div {
