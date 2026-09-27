@@ -14,8 +14,8 @@ from reportlab.lib.utils import ImageReader
 # --- Configuration ---
 CARD_WIDTH = 63 * mm
 CARD_HEIGHT = 88 * mm
-MARGIN_X = 10 * mm
-MARGIN_Y = 15 * mm
+MARGIN_X = 5 * mm
+MARGIN_Y = 5 * mm
 SPACING = 2 * mm 
 
 def parse_decklist(decklist_text, cut_basic_lands=False):
@@ -377,7 +377,7 @@ st.markdown("""
     div[data-baseweb="input"] > div:focus-within,
     textarea:focus {
         border: 1px solid #FCEE0A !important;
-        box-shadow: 0 0 6px #FCEE0A40 !important;
+        box-shadow: 0 0 4px #FCEE0A40 !important;
     }
 
     div[data-testid="stButton"] > button[kind="primary"] {
@@ -388,14 +388,14 @@ st.markdown("""
         text-transform: uppercase;
         font-weight: bold;
         letter-spacing: 2px;
-        box-shadow: 0 0 5px #FCEE0A30;
+        box-shadow: 0 0 3px #FCEE0A30;
         transition: all 0.2s ease-in-out;
     }
     
     div[data-testid="stButton"] > button[kind="primary"]:hover {
         background-color: #FCEE0A !important;
         color: #000000 !important;
-        box-shadow: 0 0 10px #FCEE0A, 0 0 20px #FCEE0A80 !important;
+        box-shadow: 0 0 8px #FCEE0A, 0 0 15px #FCEE0A60 !important;
     }
 
     img {
@@ -405,13 +405,13 @@ st.markdown("""
     }
     img:hover {
         border: 1px solid #FCEE0A;
-        box-shadow: 0 0 8px #FCEE0A50;
+        box-shadow: 0 0 6px #FCEE0A40;
         transform: scale(1.01);
     }
     
     .stProgress > div > div > div > div {
         background-color: #FCEE0A !important;
-        box-shadow: 0 0 10px #FCEE0A !important;
+        box-shadow: 0 0 8px #FCEE0A !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -420,6 +420,12 @@ if 'preview_cards' not in st.session_state:
     st.session_state.preview_cards = None
 if 'error_log' not in st.session_state:
     st.session_state.error_log = None
+if 'pdf_ready' not in st.session_state:
+    st.session_state.pdf_ready = False
+if 'pdf_data' not in st.session_state:
+    st.session_state.pdf_data = None
+if 'images_added' not in st.session_state:
+    st.session_state.images_added = 0
 
 st.title("Proxyfy Beta by Nefpo")
 st.write("Generate print-ready PDFs with lossless PNG quality.")
@@ -436,14 +442,17 @@ with st.sidebar:
     st.markdown("---")
     st.header("Print Settings")
     corner_style = st.radio("Card Corners", ["Rounded", "Sharp (Square)"])
-    paper_size_name = st.selectbox("Paper Size", ["A4", "A3", "US (Letter)", "US (Legal)"])
+    paper_size_name = st.selectbox("Paper Size", ["A4", "A3", "US (Legal)"])
     
-    paper_sizes = {"A4": A4, "A3": A3, "US (Letter)": letter, "US (Legal)": legal}
+    paper_sizes = {"A4": A4, "A3": A3, "US (Legal)": legal}
     selected_paper = paper_sizes[paper_size_name]
 
 decklist_input = st.text_area("Paste your decklist here:", height=200)
 
 if st.button("Load Cards & Show Preview", type="primary"):
+    st.session_state.pdf_ready = False 
+    st.session_state.pdf_data = None
+    
     if decklist_input.strip() == "":
         st.error("Please enter a decklist first.")
     else:
@@ -491,21 +500,16 @@ if st.session_state.preview_cards is not None:
             st.image(card['urls'][0], caption=f"{card['count']}x {card['name']}", use_container_width=True)
     
     st.markdown("---")
-    pdf_filename = "Proxyfy_Deck.pdf"
     
     if st.button("Generate Print-Ready PDF", type="primary", use_container_width=True):
+        pdf_filename = "Proxyfy_Deck.pdf"
         images_added = generate_deck_pdf(st.session_state.preview_cards, pdf_filename, selected_paper, corner_style.split()[0])
         
         if images_added > 0 and os.path.exists(pdf_filename):
             with open(pdf_filename, "rb") as pdf_file:
-                st.download_button(
-                    label="Download PDF",
-                    data=pdf_file,
-                    file_name="Proxyfy_Deck.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-            st.success(f"Success: {images_added} cards generated on {paper_size_name} paper with {corner_style.lower()} corners.")
+                st.session_state.pdf_data = pdf_file.read()
+                st.session_state.pdf_ready = True
+                st.session_state.images_added = images_added
             
             try:
                 webhook_url = "DEINE_MAKE_COM_WEBHOOK_URL_HIER_EINTRAGEN"
@@ -519,3 +523,13 @@ if st.session_state.preview_cards is not None:
                 requests.post(webhook_url, json=payload, timeout=2)
             except Exception:
                 pass
+                
+    if st.session_state.pdf_ready and st.session_state.pdf_data is not None:
+        st.success(f"Success: {st.session_state.images_added} cards generated on {paper_size_name} paper with {corner_style.lower()} corners.")
+        st.download_button(
+            label="Download PDF",
+            data=st.session_state.pdf_data,
+            file_name="Proxyfy_Deck.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
