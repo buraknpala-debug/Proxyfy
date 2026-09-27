@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import os
 import re
 import time
@@ -140,11 +141,20 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
                         info = deck_dict[key]
                         orig_lower = info['name'].lower()
                         matching_prints = []
+                        
                         for card in data.get('data', []):
-                            card_name = card['name'].lower()
-                            faces = [f.strip() for f in card_name.split('//')]
-                            if orig_lower == card_name or orig_lower in faces:
+                            valid_names = set()
+                            for k in ['name', 'flavor_name', 'printed_name']:
+                                if card.get(k): valid_names.add(str(card[k]).lower())
+                            for face in card.get('card_faces', []):
+                                for k in ['name', 'flavor_name', 'printed_name']:
+                                    if face.get(k): valid_names.add(str(face[k]).lower())
+                            for n in list(valid_names):
+                                valid_names.update([s.strip() for s in n.split('//')])
+                            
+                            if orig_lower in valid_names:
                                 matching_prints.append(card)
+                                
                         if matching_prints:
                             def get_price(c):
                                 prices = c.get('prices', {})
@@ -209,10 +219,18 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
                         info = deck_dict[key]
                         orig_lower = info['name'].lower()
                         best_match_idx = -1
+                        
                         for idx, card in enumerate(available_cards):
-                            card_name = card['name'].lower()
-                            faces = [f.strip() for f in card_name.split('//')]
-                            if orig_lower == card_name or orig_lower in faces:
+                            valid_names = set()
+                            for k in ['name', 'flavor_name', 'printed_name']:
+                                if card.get(k): valid_names.add(str(card[k]).lower())
+                            for face in card.get('card_faces', []):
+                                for k in ['name', 'flavor_name', 'printed_name']:
+                                    if face.get(k): valid_names.add(str(face[k]).lower())
+                            for n in list(valid_names):
+                                valid_names.update([s.strip() for s in n.split('//')])
+                                
+                            if orig_lower in valid_names:
                                 if info['set'] == str(card.get('set', '')).lower() and info['cn'] == str(card.get('collector_number', '')).lower():
                                     best_match_idx = idx
                                     break
@@ -357,7 +375,6 @@ def generate_deck_pdf(card_metadata, output_filename, paper_size_tuple, corner_s
 
 st.set_page_config(page_title="Proxyfy by Nefpo", layout="wide")
 
-# Unsichtbarer Anker ganz oben auf der Seite
 st.markdown('<div id="top"></div>', unsafe_allow_html=True)
 
 st.markdown("""
@@ -472,7 +489,6 @@ st.markdown("""
         box-shadow: 0 0 8px #FCEE0A !important;
     }
     
-    /* PURE CSS SCROLL TO TOP BUTTON (STICKY IN SIDEBAR) */
     a.tp-to-top-btn {
         display: block !important;
         position: sticky !important;
@@ -562,7 +578,6 @@ with st.sidebar:
     #         else:
     #             st.warning("Please enter a message first.")
     
-    # --- TP TO THE TOP BUTTON (NATIVE HTML/CSS) ---
     st.markdown('<a href="#top" target="_self" class="tp-to-top-btn">TP to the Top</a>', unsafe_allow_html=True)
 
 decklist_input = st.text_area("Paste your decklist here:", height=200)
