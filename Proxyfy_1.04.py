@@ -511,29 +511,6 @@ with st.sidebar:
     paper_sizes = {"A4": A4, "A3": A3, "US (Legal)": legal}
     selected_paper = paper_sizes[paper_size_name]
 
-    # --- AUSGEBLENDETES FEEDBACK-FORMULAR ---
-    # st.markdown("---")
-    # st.header("Feedback & Bugs")
-    # with st.form("feedback_form"):
-    #     user_email = st.text_input("Your Email (optional)")
-    #     feedback_text = st.text_area("Got a suggestion or found a bug? Let me know!")
-    #     submitted = st.form_submit_button("Send Feedback")
-    #     if submitted:
-    #         if feedback_text.strip():
-    #             try:
-    #                 # HIER DIE FORMSPREE-URL EINTRAGEN (z.B. https://formspree.io/f/xyz...)
-    #                 feedback_url = "DEINE_FORMSPREE_URL_HIER_EINTRAGEN" 
-    #                 payload = {
-    #                     "email": user_email if user_email else "No email provided",
-    #                     "message": feedback_text.strip()
-    #                 }
-    #                 requests.post(feedback_url, json=payload, timeout=3)
-    #                 st.success("Thanks for your feedback!")
-    #             except Exception:
-    #                 st.error("Something went wrong.")
-    #         else:
-    #             st.warning("Please enter a message first.")
-
 decklist_input = st.text_area("Paste your decklist here:", height=200)
 
 if st.button("Load Cards & Show Preview", type="primary"):
@@ -662,7 +639,7 @@ if st.session_state.preview_cards is not None:
                 use_container_width=True
             )
 
-# --- SCROLL TO TOP BUTTON (CYBERPUNK STYLE) ---
+# --- SCROLL TO TOP BUTTON (CYBERPUNK STYLE - POSITIONED BOTTOM LEFT IN SIDEBAR) ---
 components.html(
     """
     <script>
@@ -671,11 +648,11 @@ components.html(
 
     if (!btn) {
         btn = doc.createElement("button");
-        btn.innerHTML = "▲ TOP";
+        btn.innerHTML = "TP to the Top";
         btn.id = "cyberpunkScrollBtn";
         
-        // Cyberpunk Styling
-        btn.style.cssText = "display: none; position: fixed; bottom: 40px; right: 40px; z-index: 999999; background-color: #050505; color: #FCEE0A; border: 2px solid #FCEE0A; padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 0 5px #FCEE0A40; transition: background-color 0.2s, color 0.2s, box-shadow 0.2s; border-radius: 0px;";
+        // Cyberpunk Styling - Positioniert unten links (wie in der Skizze)
+        btn.style.cssText = "display: none; position: fixed; bottom: 30px; left: 20px; z-index: 999999; background-color: #050505; color: #FCEE0A; border: 2px solid #FCEE0A; padding: 10px 20px; width: 250px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 0 5px #FCEE0A40; transition: background-color 0.2s, color 0.2s, box-shadow 0.2s; border-radius: 0px;";
         
         // Hover-Effekte
         btn.onmouseover = function() {
@@ -701,7 +678,7 @@ components.html(
             containers.forEach(c => {
                 if (c) {
                     if (typeof c.scrollTo === 'function') {
-                        c.scrollTo({top: 0, behavior: 'auto'}); // 'auto' erzwingt instant scroll
+                        c.scrollTo({top: 0, behavior: 'auto'});
                     }
                     c.scrollTop = 0;
                 }
@@ -710,7 +687,7 @@ components.html(
 
         doc.body.appendChild(btn);
 
-        // Überwacht aktiv alle 250ms die Scroll-Position (Bulletproof für Streamlit)
+        // Überwacht aktiv die Scroll-Position
         setInterval(function() {
             const container = doc.querySelector('[data-testid="stAppViewContainer"]') || doc.documentElement;
             const scrollPos = container.scrollTop || window.parent.scrollY || 0;
