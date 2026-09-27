@@ -7,7 +7,7 @@ import concurrent.futures
 from io import BytesIO
 from PIL import Image, ImageDraw
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, A3, letter
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 
@@ -42,27 +42,44 @@ def parse_decklist(decklist_text, cut_basic_lands=False):
             count = 1
             rest = line.strip()
             
-        if '(' in rest:
-            name = rest.split('(')[0].strip()
+        # Set und Collector Number extrahieren (z.B. "Food Token (LTR) 12")
+        set_code = ""
+        cn = ""
+        match = re.search(r'\(([^)]+)\)\s*([a-zA-Z0-9★_]+)?$', rest)
+        if match:
+            set_code = match.group(1).lower()
+            cn = match.group(2) if match.group(2) else ""
+            name = rest[:match.start()].strip()
         else:
-            name = rest.split('*')[0].strip()
+            name = rest
             
-        name = name.replace('*', '').strip()
+        if '(' in name: name = name.split('(')[0].strip()
+        if '*' in name: name = name.replace('*', '').strip()
         name = name.split(' / ')[0].split(' // ')[0].strip()
         
         if cut_basic_lands and name.lower() in basic_lands:
             continue
         
-        deck_dict[name] = deck_dict.get(name, 0) + count
+        key = f"{name}|{set_code}|{cn}"
+        
+        if key in deck_dict:
+            deck_dict[key]['count'] += count
+        else:
+            deck_dict[key] = {
+                'name': name,
+                'set': set_code,
+                'cn': cn,
+                'count': count
+            }
         
     return deck_dict
 
-def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_style, set_code, fancy_mode):
+def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_style, set_code_global, fancy_mode):
     headers = {'User-Agent': 'Proxyfy/Smart-Cascade', 'Accept': 'application/json'}
     fetched_cards = {}
     error_log = {}
     
-    remaining_names = list(deck_dict.keys())
+    remaining_keys = list(deck_dict.keys())
     
     art_map = {
         "Borderless": "is:borderless",
@@ -76,18 +93,18 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
     step_custom = {}
     if art_style != "Standard" and art_style in art_map: 
         step_custom['style'] = art_map[art_style]
-    if set_code: 
-        step_custom['set'] = set_code
+    if set_code_global: 
+        step_custom['set'] = set_code_global
     if lang != 'en': 
         step_custom['lang'] = lang
     if step_custom:
         cascade_steps.append(step_custom)
         
-    if art_style != "Standard" and art_style in art_map and set_code:
+    if art_style != "Standard" and art_style in art_map and set_code_global:
         cascade_steps.append({'style': art_map[art_style], 'lang': lang if lang != 'en' else None})
         
-    if set_code:
-        cascade_steps.append({'set': set_code, 'lang': lang if lang != 'en' else None})
+    if set_code_global:
+        cascade_steps.append({'set': set_code_global, 'lang': lang if lang != 'en' else None})
         
     if lang != 'en':
         cascade_steps.append({'lang': lang})
@@ -100,12 +117,19 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
     if fancy_mode:
         status_text.text("Scanning card data for Fancy Mode (rarest/highest value arts)...")
         still_missing = []
-        chunks = [remaining_names[i:i + 20] for i in range(0, len(remaining_names), 20)]
+        chunks = [remaining_keys[i:i + 20] for i in range(0, len(remaining_keys), 20)]
         
         for chunk in chunks:
-            or_query = " OR ".join([f'!"{name}"' for name in chunk])
-            q = f"({or_query})"
-            if set_code: q += f" e:{set_code}"
+            or_terms = []
+            for key in chunk:
+                info = deck_dict[key]
+                term = f'!"{info["name"]}" include:extras'
+                if info['set']: term += f" e:{info['set']}"
+                if info['cn']: term += f" cn:{info['cn']}"
+                or_terms.append(f"({term})")
+                
+            q = " OR ".join(or_terms)
+            if set_code_global: q = f"({q}) e:{set_code_global}"
             
             time.sleep(0.15)
             try:
@@ -113,8 +137,9 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
                 if response.status_code == 200:
                     data = response.json()
                     
-                    for orig_name in chunk:
-                        orig_lower = orig_name.lower()
+                    for key in chunk:
+                        info = deck_dict[key]
+                        orig_lower = info['name'].lower()
                         matching_prints = []
                         
                         for card in data.get('data', []):
@@ -130,75 +155,96 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
                                 try: return float(p)
                                 except: return 0.0
                             matching_prints.sort(key=get_price, reverse=True)
-                            fetched_cards[orig_name] = matching_prints[0]
+                            fetched_cards[key] = matching_prints[0]
                         else:
-                            still_missing.append(orig_name)
+                            still_missing.append(key)
                 else:
                     still_missing.extend(chunk)
             except:
                 still_missing.extend(chunk)
                 
-        remaining_names = list(dict.fromkeys(still_missing))
+        remaining_keys = list(dict.fromkeys(still_missing))
         current_step += 1
 
     for step_filters in cascade_steps:
-        if not remaining_names:
+        if not remaining_keys:
             break
             
-        status_text.text(f"Querying Scryfall cascade step {current_step}/{total_steps} ({len(remaining_names)} cards remaining)...")
-        chunks = [remaining_names[i:i + 20] for i in range(0, len(remaining_names), 20)]
+        status_text.text(f"Querying Scryfall cascade step {current_step}/{total_steps} ({len(remaining_keys)} cards remaining)...")
+        chunks = [remaining_keys[i:i + 20] for i in range(0, len(remaining_keys), 20)]
         still_missing = []
         
         for chunk in chunks:
-            or_query = " OR ".join([f'!"{name}"' for name in chunk])
-            q = f"({or_query})"
+            or_terms = []
+            for key in chunk:
+                info = deck_dict[key]
+                term = f'!"{info["name"]}" include:extras'
+                if info['set']: term += f" e:{info['set']}"
+                if info['cn']: term += f" cn:{info['cn']}"
+                or_terms.append(f"({term})")
+                
+            q = " OR ".join(or_terms)
             
+            global_filters = []
             if 'style' in step_filters and step_filters['style']:
-                q += f" {step_filters['style']}"
+                global_filters.append(step_filters['style'])
             if 'set' in step_filters and step_filters['set']:
-                q += f" e:{step_filters['set']}"
+                global_filters.append(f"e:{step_filters['set']}")
             if 'lang' in step_filters and step_filters['lang']:
-                q += f" lang:{step_filters['lang']}"
+                global_filters.append(f"lang:{step_filters['lang']}")
+                
+            if global_filters:
+                q = f"({q}) " + " ".join(global_filters)
                 
             time.sleep(0.15)
             try:
                 response = requests.get("https://api.scryfall.com/cards/search", params={'q': q}, headers=headers)
                 if response.status_code == 200:
                     data = response.json()
+                    available_cards = list(data.get('data', []))
                     found_in_batch = set()
                     
-                    for orig_name in chunk:
-                        orig_lower = orig_name.lower()
-                        if orig_lower in found_in_batch:
+                    for key in chunk:
+                        if key in found_in_batch:
                             continue
                             
-                        for card in data.get('data', []):
+                        info = deck_dict[key]
+                        orig_lower = info['name'].lower()
+                        best_match_idx = -1
+                        
+                        for idx, card in enumerate(available_cards):
                             card_name = card['name'].lower()
                             faces = [f.strip() for f in card_name.split('//')]
                             
                             if orig_lower == card_name or orig_lower in faces:
-                                if orig_name not in fetched_cards:
-                                    fetched_cards[orig_name] = card
-                                found_in_batch.add(orig_lower)
-                                break
+                                if info['set'] == card.get('set', '').lower() and info['cn'] == card.get('collector_number', '').lower():
+                                    best_match_idx = idx
+                                    break
+                                elif best_match_idx == -1:
+                                    best_match_idx = idx
+                                    
+                        if best_match_idx != -1:
+                            fetched_cards[key] = available_cards.pop(best_match_idx)
+                            found_in_batch.add(key)
                                 
-                    for orig_name in chunk:
-                        if orig_name.lower() not in found_in_batch:
-                            still_missing.append(orig_name)
+                    for key in chunk:
+                        if key not in found_in_batch:
+                            still_missing.append(key)
                 else:
                     still_missing.extend(chunk)
             except Exception:
                 still_missing.extend(chunk)
                 
-        remaining_names = list(dict.fromkeys(still_missing))
+        remaining_keys = list(dict.fromkeys(still_missing))
         current_step += 1
         
-    error_log = {name: "Card not found" for name in remaining_names}
+    for key in remaining_keys:
+        error_log[deck_dict[key]['name']] = "Card or Token not found"
     
     card_metadata = []
-    for name, count in deck_dict.items():
-        if name in fetched_cards:
-            card_data = fetched_cards[name]
+    for key, info in deck_dict.items():
+        if key in fetched_cards:
+            card_data = fetched_cards[key]
             type_line = card_data.get('type_line', '')
             colors = card_data.get('colors')
             if colors is None and 'card_faces' in card_data:
@@ -217,73 +263,58 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
                         
             if img_urls:
                 card_metadata.append({
-                    'name': name,
+                    'name': info['name'],
                     'urls': img_urls,
                     'type': type_line,
                     'colors': colors,
-                    'count': count
+                    'count': info['count']
                 })
                 
     progress_bar.progress(1.0)
     return card_metadata, error_log
 
-def download_image(url):
+def download_image(url, corner_style):
     headers = {'User-Agent': 'Proxyfy/Smart-Cascade'}
     img_response = requests.get(url, headers=headers)
     img = Image.open(BytesIO(img_response.content)).convert("RGBA")
     
-    mask = Image.new('L', img.size, 0)
-    draw = ImageDraw.Draw(mask)
-    corner_radius = int(img.size[0] * 0.045)
-    draw.rounded_rectangle((0, 0, img.size[0], img.size[1]), radius=corner_radius, fill=255)
-    
-    background = Image.new("RGB", img.size, (255, 255, 255))
-    background.paste(img, mask=mask)
-    return background
+    if corner_style == "Rounded":
+        mask = Image.new('L', img.size, 0)
+        draw = ImageDraw.Draw(mask)
+        corner_radius = int(img.size[0] * 0.045)
+        draw.rounded_rectangle((0, 0, img.size[0], img.size[1]), radius=corner_radius, fill=255)
+        background = Image.new("RGB", img.size, (255, 255, 255))
+        background.paste(img, mask=mask)
+        return background
+    else:
+        background = Image.new("RGB", img.size, (255, 255, 255))
+        background.paste(img, mask=img.split()[3] if len(img.split()) == 4 else None)
+        return background
 
-def generate_deck_pdf(deck_dict, output_filename, lang, art_style, set_code, fancy_mode):
+def generate_deck_pdf(card_metadata, output_filename, paper_size_tuple, corner_style):
     progress_bar = st.progress(0)
     status_text = st.empty()
-    
-    card_metadata, error_log = get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_style, set_code, fancy_mode)
-    
-    if not card_metadata:
-        status_text.text("No cards found.")
-        return error_log, 0
-        
-    def sort_key(c):
-        main_type = c['type'].split('—')[0].lower()
-        num_colors = len(c['colors'])
-        if 'basic land' in main_type: return 90
-        elif 'land' in main_type: return 80
-        elif 'creature' in main_type:
-            if num_colors > 1: return 10 - num_colors 
-            elif num_colors == 1: return 15
-            else: return 20
-        elif 'planeswalker' in main_type: return 30
-        elif 'instant' in main_type or 'sorcery' in main_type: return 40
-        elif 'enchantment' in main_type: return 50
-        elif 'artifact' in main_type: return 60
-        else: return 70
-        
-    card_metadata.sort(key=sort_key)
     
     status_text.text("Processing card images and building PDF...")
     progress_bar.progress(0.0)
     
-    c = canvas.Canvas(output_filename, pagesize=A4)
+    c = canvas.Canvas(output_filename, pagesize=paper_size_tuple)
+    page_width, page_height = paper_size_tuple
+    
     x_start = MARGIN_X
-    y_start = A4[1] - MARGIN_Y - CARD_HEIGHT
+    y_start = page_height - MARGIN_Y - CARD_HEIGHT
+    max_cols = int((page_width - 2 * MARGIN_X + SPACING) // (CARD_WIDTH + SPACING))
+    max_rows = int((page_height - 2 * MARGIN_Y + SPACING) // (CARD_HEIGHT + SPACING))
+    
     col = 0
     row = 0
     images_added = 0
-    
     total_downloads = sum(len(item['urls']) for item in card_metadata)
     downloaded = 0
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         for item in card_metadata:
-            future_to_url = {executor.submit(download_image, url): url for url in item['urls']}
+            future_to_url = {executor.submit(download_image, url, corner_style): url for url in item['urls']}
             downloaded_images = []
             
             for future in concurrent.futures.as_completed(future_to_url):
@@ -305,11 +336,11 @@ def generate_deck_pdf(deck_dict, output_filename, lang, art_style, set_code, fan
                     images_added += 1
                     
                     col += 1
-                    if col > 2:
+                    if col >= max_cols:
                         col = 0
                         row += 1
                         
-                    if row > 2:
+                    if row >= max_rows:
                         c.showPage()
                         col = 0
                         row = 0
@@ -318,45 +349,146 @@ def generate_deck_pdf(deck_dict, output_filename, lang, art_style, set_code, fan
         c.save()
         status_text.text("PDF generated successfully.")
         
-    return error_log, images_added
+    return images_added
 
 # ==========================================
-# STREAMLIT USER INTERFACE
+# STREAMLIT USER INTERFACE & SESSION STATE
 # ==========================================
 
 st.set_page_config(page_title="Proxyfy Beta by Nefpo", layout="wide")
+
+# Cyberpunk CSS Injection
+st.markdown("""
+<style>
+    div[data-baseweb="select"] > div, 
+    div[data-baseweb="input"] > div,
+    textarea {
+        border-radius: 0px !important;
+        border: 1px solid #333333 !important;
+    }
+    
+    div[data-baseweb="select"] > div:focus-within, 
+    div[data-baseweb="input"] > div:focus-within,
+    textarea:focus {
+        border: 1px solid #FCEE0A !important;
+        box-shadow: 0 0 8px #FCEE0A60 !important;
+    }
+
+    div[data-testid="stButton"] > button[kind="primary"] {
+        background-color: transparent !important;
+        color: #FCEE0A !important;
+        border: 2px solid #FCEE0A !important;
+        border-radius: 0px !important;
+        text-transform: uppercase;
+        font-weight: bold;
+        letter-spacing: 2px;
+        box-shadow: 0 0 10px #FCEE0A40;
+        transition: all 0.2s ease-in-out;
+    }
+    
+    div[data-testid="stButton"] > button[kind="primary"]:hover {
+        background-color: #FCEE0A !important;
+        color: #000000 !important;
+        box-shadow: 0 0 20px #FCEE0A, 0 0 40px #FCEE0A !important;
+    }
+
+    img {
+        border-radius: 0px !important;
+        border: 1px solid #222222;
+        transition: all 0.2s;
+    }
+    img:hover {
+        border: 1px solid #FCEE0A;
+        box-shadow: 0 0 15px #FCEE0A80;
+        transform: scale(1.02);
+    }
+    
+    .stProgress > div > div > div > div {
+        background-color: #FCEE0A !important;
+        box-shadow: 0 0 10px #FCEE0A !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+if 'preview_cards' not in st.session_state:
+    st.session_state.preview_cards = None
+if 'error_log' not in st.session_state:
+    st.session_state.error_log = None
 
 st.title("Proxyfy Beta by Nefpo")
 st.write("Generate print-ready PDFs with lossless PNG quality.")
 
 with st.sidebar:
-    st.header("Specifications")
-    
+    st.header("Card & Art Settings")
     fancy_mode = st.checkbox("Fancy (Highest Value Artwork)", value=False)
     cut_basic_lands = st.checkbox("Cut Basic Lands", value=False)
-    
     lang_input = st.selectbox("Preferred Language", ["English (en)", "German (de)", "Japanese (ja)", "French (fr)", "Spanish (es)"])
     lang_code = lang_input.split("(")[1].replace(")", "")
-    
     art_style = st.selectbox("Override Frame / Art Style", ["Standard", "Extended Art", "Borderless", "Showcase", "Retro"])
-    set_code = st.text_input("Specific Set Code (Optional, e.g. 'mh2' or '40k')", value="")
+    set_code = st.text_input("Specific Set Code (Optional, e.g. 'mh2')", value="")
+    
+    st.markdown("---")
+    st.header("Print Settings")
+    corner_style = st.radio("Card Corners", ["Rounded", "Sharp (Square)"])
+    paper_size_name = st.selectbox("Paper Size", ["A4", "A3", "US Letter"])
+    
+    paper_sizes = {"A4": A4, "A3": A3, "US Letter": letter}
+    selected_paper = paper_sizes[paper_size_name]
 
-decklist_input = st.text_area("Paste your decklist here:", height=300)
+decklist_input = st.text_area("Paste your decklist here:", height=200)
 
-if st.button("Generate PDF", type="primary", use_container_width=True):
+if st.button("Load Cards & Show Preview", type="primary"):
     if decklist_input.strip() == "":
         st.error("Please enter a decklist first.")
     else:
         deck_dict = parse_decklist(decklist_input, cut_basic_lands)
-        pdf_filename = "Proxyfy_Deck.pdf"
+        progress_bar = st.progress(0)
+        status_text = st.empty()
         
         with st.spinner("Fetching card data from Scryfall..."):
-            error_log, images_added = generate_deck_pdf(deck_dict, pdf_filename, lang_code, art_style, set_code.strip(), fancy_mode)
-        
-        if error_log:
-            st.warning("The following cards could not be found:")
-            for card, err in error_log.items():
-                st.write(f"- {card}: {err}")
+            cards, errors = get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang_code, art_style, set_code.strip(), fancy_mode)
+            
+            def sort_key(c):
+                main_type = c['type'].split('—')[0].lower()
+                num_colors = len(c['colors'])
+                if 'basic land' in main_type: return 90
+                elif 'land' in main_type: return 80
+                elif 'creature' in main_type:
+                    return 10 - num_colors if num_colors > 1 else (15 if num_colors == 1 else 20)
+                elif 'planeswalker' in main_type: return 30
+                elif 'instant' in main_type or 'sorcery' in main_type: return 40
+                elif 'enchantment' in main_type: return 50
+                elif 'artifact' in main_type: return 60
+                else: return 70
+                
+            if cards:
+                cards.sort(key=sort_key)
+            
+            st.session_state.preview_cards = cards
+            st.session_state.error_log = errors
+            
+            progress_bar.empty()
+            status_text.empty()
+
+if st.session_state.preview_cards is not None:
+    st.markdown("---")
+    st.subheader(f"Deck Preview ({sum(c['count'] for c in st.session_state.preview_cards)} Cards)")
+    
+    if st.session_state.error_log:
+        st.warning("The following cards could not be found:")
+        for card, err in st.session_state.error_log.items():
+            st.write(f"- {card}: {err}")
+    
+    cols = st.columns(5)
+    for idx, card in enumerate(st.session_state.preview_cards):
+        with cols[idx % 5]:
+            st.image(card['urls'][0], caption=f"{card['count']}x {card['name']}", use_container_width=True)
+    
+    st.markdown("---")
+    pdf_filename = "Proxyfy_Deck.pdf"
+    
+    if st.button("Generate Print-Ready PDF", type="primary", use_container_width=True):
+        images_added = generate_deck_pdf(st.session_state.preview_cards, pdf_filename, selected_paper, corner_style.split()[0])
         
         if images_added > 0 and os.path.exists(pdf_filename):
             with open(pdf_filename, "rb") as pdf_file:
@@ -367,13 +499,17 @@ if st.button("Generate PDF", type="primary", use_container_width=True):
                     mime="application/pdf",
                     use_container_width=True
                 )
-            st.success(f"Success: {images_added} cards generated.")
-
-# Future ad placement placeholder
-#st.markdown("---")
-#st.markdown("### Sponsor / Advertisement")
-#col_ad1, col_ad2 = st.columns([3, 1])
-#with col_ad1:
-#    st.info("Space reserved for future partners and sponsors.")
-#with col_ad2:
-#    st.write("Ad (Placeholder)")
+            st.success(f"Success: {images_added} cards generated on {paper_size_name} paper with {corner_style.lower()} corners.")
+            
+            try:
+                webhook_url = "DEINE_MAKE_COM_WEBHOOK_URL_HIER_EINTRAGEN"
+                payload = {
+                    "event": "pdf_generated",
+                    "cards_total": images_added,
+                    "fancy_mode": fancy_mode,
+                    "lang": lang_code,
+                    "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+                }
+                requests.post(webhook_url, json=payload, timeout=2)
+            except Exception:
+                pass
