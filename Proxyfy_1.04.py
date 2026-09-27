@@ -134,7 +134,6 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
             
             time.sleep(0.15)
             try:
-                # FIX: unique:prints ist jetzt ein API-Parameter, nicht Teil des Suchstrings
                 response = requests.get("https://api.scryfall.com/cards/search", params={'q': q, 'unique': 'prints'}, headers=headers)
                 if response.status_code == 200:
                     data = response.json()
@@ -358,13 +357,42 @@ def generate_deck_pdf(card_metadata, output_filename, paper_size_tuple, corner_s
 
 st.set_page_config(page_title="Proxyfy Beta by Nefpo", layout="wide")
 
+# MASSIVES CYBERPUNK CSS-OVERRIDE
 st.markdown("""
 <style>
+    /* 1. ALLE ECKEN SIND JETZT SCHARF (Keine Kompromisse) */
+    button, input, textarea, select, img, div[data-baseweb], .stAlert, .stProgress, label span {
+        border-radius: 0px !important;
+    }
+    div[data-testid="stCheckbox"] div, div[data-testid="stRadio"] div {
+        border-radius: 0px !important;
+    }
+
+    /* 2. ROTE STANDARDFARBEN ERSETZEN (Checkboxes & Radios) */
+    /* Überschreibt Streamlit-Rot mit Cyberpunk-Gelb bei Auswahl */
+    [data-baseweb="checkbox"] [aria-checked="true"] > div,
+    [data-baseweb="radio"] [aria-checked="true"] > div {
+        background-color: #FCEE0A !important;
+        border-color: #FCEE0A !important;
+    }
+    
+    /* Der innere Punkt bei Radio-Buttons (Farbe wird invertiert auf tiefschwarz) */
+    [data-baseweb="radio"] [aria-checked="true"] > div > div {
+        background-color: #050505 !important; 
+    }
+
+    /* Focus-Ringe (Damit sie nicht blau/rot leuchten) */
+    [data-baseweb="checkbox"] [aria-checked="true"]:focus-visible > div,
+    [data-baseweb="radio"] [aria-checked="true"]:focus-visible > div {
+        outline: 2px solid #FCEE0A !important;
+    }
+
+    /* 3. EINGABEFELDER & TEXTAREAS */
     div[data-baseweb="select"] > div, 
     div[data-baseweb="input"] > div,
     textarea {
-        border-radius: 0px !important;
         border: 1px solid #333333 !important;
+        background-color: #050505 !important;
     }
     
     div[data-baseweb="select"] > div:focus-within, 
@@ -374,11 +402,11 @@ st.markdown("""
         box-shadow: 0 0 4px #FCEE0A40 !important;
     }
 
+    /* 4. PRIMARY BUTTON (GENERATE) */
     div[data-testid="stButton"] > button[kind="primary"] {
         background-color: transparent !important;
         color: #FCEE0A !important;
         border: 2px solid #FCEE0A !important;
-        border-radius: 0px !important;
         text-transform: uppercase;
         font-weight: bold;
         letter-spacing: 2px;
@@ -391,11 +419,11 @@ st.markdown("""
         box-shadow: 0 0 8px #FCEE0A, 0 0 15px #FCEE0A60 !important;
     }
 
+    /* 5. SECONDARY BUTTONS (CHANGE ART) */
     div[data-testid="stButton"] > button[kind="secondary"] {
         background-color: transparent !important;
         color: #E0E0E0 !important;
         border: 1px solid #444444 !important;
-        border-radius: 0px !important;
         transition: all 0.2s ease-in-out;
         padding: 2px 10px;
         width: 100%;
@@ -406,8 +434,8 @@ st.markdown("""
         box-shadow: 0 0 5px #FCEE0A40 !important;
     }
 
+    /* 6. BILDER HOVER-EFFEKT */
     img {
-        border-radius: 0px !important;
         border: 1px solid #222222;
         transition: all 0.2s;
     }
@@ -417,6 +445,7 @@ st.markdown("""
         transform: scale(1.01);
     }
     
+    /* 7. LADEBALKEN (PROGRESS BAR) */
     .stProgress > div > div > div > div {
         background-color: #FCEE0A !important;
         box-shadow: 0 0 8px #FCEE0A !important;
@@ -515,7 +544,6 @@ if st.session_state.preview_cards is not None:
             with st.spinner("Loading all available artworks..."):
                 safe_name = active_card['name'].replace('"', '')
                 q = f'!"{safe_name}" include:extras'
-                # FIX: unique:prints ist jetzt sauber als Parameter getrennt
                 res = requests.get("https://api.scryfall.com/cards/search", params={'q': q, 'unique': 'prints'}, headers={'User-Agent': 'Proxyfy/Smart-Cascade', 'Accept': 'application/json'})
                 if res.status_code == 200:
                     st.session_state.variants_data = res.json().get('data', [])
