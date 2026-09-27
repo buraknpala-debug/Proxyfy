@@ -45,7 +45,6 @@ def parse_decklist(decklist_text, cut_basic_lands=False):
             
         set_code = ""
         cn = ""
-        # FIX: Erkennt nun runde () UND eckige [] Klammern für Set-Codes (wichtig für Tokens)
         match = re.search(r'[\(\[]([^)\]]+)[\)\]]\s*([a-zA-Z0-9★_]+)?$', rest)
         if match:
             set_code = match.group(1).lower()
