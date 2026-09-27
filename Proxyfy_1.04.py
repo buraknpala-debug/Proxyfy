@@ -130,11 +130,12 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
                 
             q = f"({ ' OR '.join(or_terms) })"
             if set_code_global: q = f"{q} e:{set_code_global}"
-            q += " include:extras unique:prints"
+            q += " include:extras"
             
             time.sleep(0.15)
             try:
-                response = requests.get("https://api.scryfall.com/cards/search", params={'q': q}, headers=headers)
+                # FIX: unique:prints ist jetzt ein API-Parameter, nicht Teil des Suchstrings
+                response = requests.get("https://api.scryfall.com/cards/search", params={'q': q, 'unique': 'prints'}, headers=headers)
                 if response.status_code == 200:
                     data = response.json()
                     for key in chunk:
@@ -284,7 +285,6 @@ def download_image(url, corner_style):
         background.paste(img, mask=mask)
         return background
     else:
-        # Füllt die runden Scryfall-Ecken mit tiefschwarz auf für ein perfektes Schneiderechteck
         background = Image.new("RGB", img.size, (0, 0, 0)) 
         if img.mode == 'RGBA':
             background.paste(img, mask=img.split()[3])
@@ -374,7 +374,6 @@ st.markdown("""
         box-shadow: 0 0 4px #FCEE0A40 !important;
     }
 
-    /* Primary Button Style */
     div[data-testid="stButton"] > button[kind="primary"] {
         background-color: transparent !important;
         color: #FCEE0A !important;
@@ -392,7 +391,6 @@ st.markdown("""
         box-shadow: 0 0 8px #FCEE0A, 0 0 15px #FCEE0A60 !important;
     }
 
-    /* Secondary Button Style (For 'Change Art' and 'Select') */
     div[data-testid="stButton"] > button[kind="secondary"] {
         background-color: transparent !important;
         color: #E0E0E0 !important;
@@ -455,7 +453,7 @@ with st.sidebar:
     
     st.markdown("---")
     st.header("Print Settings")
-    corner_style = st.radio("Card Corners", ["Sharp (Square)", "Rounded"]) # Sharp als Standard
+    corner_style = st.radio("Card Corners", ["Sharp (Square)", "Rounded"]) 
     paper_size_name = st.selectbox("Paper Size", ["A4", "A3", "US (Legal)"])
     
     paper_sizes = {"A4": A4, "A3": A3, "US (Legal)": legal}
@@ -503,7 +501,6 @@ if st.button("Load Cards & Show Preview", type="primary"):
 if st.session_state.preview_cards is not None:
     st.markdown("---")
     
-    # --- ON-THE-FLY ARTWORK SELECTOR ---
     if st.session_state.editing_idx is not None:
         edit_idx = st.session_state.editing_idx
         active_card = st.session_state.preview_cards[edit_idx]
@@ -517,8 +514,9 @@ if st.session_state.preview_cards is not None:
         if st.session_state.variants_data is None:
             with st.spinner("Loading all available artworks..."):
                 safe_name = active_card['name'].replace('"', '')
-                q = f'!"{safe_name}" include:extras unique:prints'
-                res = requests.get("https://api.scryfall.com/cards/search", params={'q': q})
+                q = f'!"{safe_name}" include:extras'
+                # FIX: unique:prints ist jetzt sauber als Parameter getrennt
+                res = requests.get("https://api.scryfall.com/cards/search", params={'q': q, 'unique': 'prints'}, headers={'User-Agent': 'Proxyfy/Smart-Cascade', 'Accept': 'application/json'})
                 if res.status_code == 200:
                     st.session_state.variants_data = res.json().get('data', [])
                 else:
@@ -529,7 +527,6 @@ if st.session_state.preview_cards is not None:
             v_cols = st.columns(5)
             for v_idx, v_card in enumerate(variants):
                 with v_cols[v_idx % 5]:
-                    # Extract URLs for the variant
                     v_img_urls = []
                     if 'image_uris' in v_card:
                         v_img_urls.append(v_card['image_uris'].get('png', v_card['image_uris'].get('large')))
@@ -543,17 +540,15 @@ if st.session_state.preview_cards is not None:
                         set_name = v_card.get('set', '').upper()
                         c_num = v_card.get('collector_number', '')
                         
-                        # Apply selection
                         if st.button(f"Select {set_name} #{c_num}", key=f"sel_var_{v_idx}"):
                             st.session_state.preview_cards[edit_idx]['urls'] = v_img_urls
                             st.session_state.editing_idx = None
                             st.session_state.variants_data = None
-                            st.session_state.pdf_ready = False # PDF muss neu generiert werden
+                            st.session_state.pdf_ready = False 
                             st.rerun()
         else:
             st.warning("No other artworks found for this card.")
             
-    # --- STANDARD DECK PREVIEW ---
     else:
         st.subheader(f"Deck Preview ({sum(c['count'] for c in st.session_state.preview_cards)} Cards)")
         
