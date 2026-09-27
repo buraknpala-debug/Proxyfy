@@ -1,5 +1,5 @@
-import streamlit.components.v1 as components
 import streamlit as st
+import streamlit.components.v1 as components
 import os
 import re
 import time
@@ -664,7 +664,9 @@ if st.session_state.preview_cards is not None:
                 mime="application/pdf",
                 use_container_width=True
             )
-            # --- SCROLL TO TOP BUTTON (CYBERPUNK STYLE) ---
+
+# --- SCROLL TO TOP BUTTON (CYBERPUNK STYLE) ---
+# Muss exakt hier stehen (ohne Einrückung), damit das JavaScript immer aktiv wird
 components.html(
     """
     <script>
@@ -679,7 +681,7 @@ components.html(
         // Cyberpunk Styling
         btn.style.cssText = "display: none; position: fixed; bottom: 40px; right: 40px; z-index: 9999; background-color: #050505; color: #FCEE0A; border: 2px solid #FCEE0A; padding: 10px 15px; font-size: 20px; font-weight: bold; cursor: pointer; box-shadow: 0 0 5px #FCEE0A40; transition: all 0.2s ease-in-out; border-radius: 0px;";
         
-        // Hover-Effekte (Leuchten)
+        // Hover-Effekte
         btn.onmouseover = function() {
             this.style.backgroundColor = "#FCEE0A";
             this.style.color = "#000000";
@@ -691,7 +693,7 @@ components.html(
             this.style.boxShadow = "0 0 5px #FCEE0A40";
         };
 
-        // Klick-Funktion: Sanft nach oben scrollen
+        // Klick nach oben
         btn.onclick = function() {
             const container = doc.querySelector('.main') || doc.querySelector('[data-testid="stAppViewContainer"]') || doc.documentElement;
             container.scrollTo({top: 0, behavior: 'smooth'});
@@ -700,7 +702,7 @@ components.html(
 
         doc.body.appendChild(btn);
 
-        // Wann soll der Button auftauchen? (Nach 300px scrollen)
+        // Auftauchen nach 300px
         const scrollContainer = doc.querySelector('.main') || doc.querySelector('[data-testid="stAppViewContainer"]') || window.parent;
         scrollContainer.addEventListener('scroll', function() {
             let scrollPos = 0;
