@@ -486,8 +486,8 @@ if 'editing_idx' not in st.session_state:
 if 'variants_data' not in st.session_state:
     st.session_state.variants_data = None
 
-st.title("Proxyfy Beta by Nefpo")
-st.write("Generate print-ready PDFs with lossless PNG quality.")
+st.title("Proxyfy by Nefpo")
+st.write("Free print-ready PDFs with lossless PNG quality.")
 
 with st.sidebar:
     st.header("Card & Art Settings")
