@@ -7,7 +7,7 @@ import concurrent.futures
 from io import BytesIO
 from PIL import Image, ImageDraw
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4, A3, letter
+from reportlab.lib.pagesizes import A4, A3, letter, legal
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 
@@ -42,7 +42,6 @@ def parse_decklist(decklist_text, cut_basic_lands=False):
             count = 1
             rest = line.strip()
             
-        # Set und Collector Number extrahieren (z.B. "Food Token (LTR) 12")
         set_code = ""
         cn = ""
         match = re.search(r'\(([^)]+)\)\s*([a-zA-Z0-9★_]+)?$', rest)
@@ -117,23 +116,25 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
     if fancy_mode:
         status_text.text("Scanning card data for Fancy Mode (rarest/highest value arts)...")
         still_missing = []
-        chunks = [remaining_keys[i:i + 20] for i in range(0, len(remaining_keys), 20)]
+        chunks = [remaining_keys[i:i + 15] for i in range(0, len(remaining_keys), 15)]
         
         for chunk in chunks:
             or_terms = []
             for key in chunk:
                 info = deck_dict[key]
-                term = f'!"{info["name"]}" include:extras'
+                safe_name = info['name'].replace('"', '')
+                term = f'!"{safe_name}"'
                 if info['set']: term += f" e:{info['set']}"
                 if info['cn']: term += f" cn:{info['cn']}"
                 or_terms.append(f"({term})")
                 
-            q = " OR ".join(or_terms)
-            if set_code_global: q = f"({q}) e:{set_code_global}"
+            q = f"({ ' OR '.join(or_terms) })"
+            if set_code_global: q = f"{q} e:{set_code_global}"
+            q += " include:extras unique:prints"
             
             time.sleep(0.15)
             try:
-                response = requests.get("https://api.scryfall.com/cards/search", params={'q': q, 'unique': 'prints'}, headers=headers)
+                response = requests.get("https://api.scryfall.com/cards/search", params={'q': q}, headers=headers)
                 if response.status_code == 200:
                     data = response.json()
                     
@@ -171,19 +172,20 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
             break
             
         status_text.text(f"Querying Scryfall cascade step {current_step}/{total_steps} ({len(remaining_keys)} cards remaining)...")
-        chunks = [remaining_keys[i:i + 20] for i in range(0, len(remaining_keys), 20)]
+        chunks = [remaining_keys[i:i + 15] for i in range(0, len(remaining_keys), 15)]
         still_missing = []
         
         for chunk in chunks:
             or_terms = []
             for key in chunk:
                 info = deck_dict[key]
-                term = f'!"{info["name"]}" include:extras'
+                safe_name = info['name'].replace('"', '')
+                term = f'!"{safe_name}"'
                 if info['set']: term += f" e:{info['set']}"
                 if info['cn']: term += f" cn:{info['cn']}"
                 or_terms.append(f"({term})")
                 
-            q = " OR ".join(or_terms)
+            q = f"({ ' OR '.join(or_terms) })"
             
             global_filters = []
             if 'style' in step_filters and step_filters['style']:
@@ -194,7 +196,9 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
                 global_filters.append(f"lang:{step_filters['lang']}")
                 
             if global_filters:
-                q = f"({q}) " + " ".join(global_filters)
+                q = f"{q} " + " ".join(global_filters)
+                
+            q += " include:extras"
                 
             time.sleep(0.15)
             try:
@@ -217,7 +221,7 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
                             faces = [f.strip() for f in card_name.split('//')]
                             
                             if orig_lower == card_name or orig_lower in faces:
-                                if info['set'] == card.get('set', '').lower() and info['cn'] == card.get('collector_number', '').lower():
+                                if info['set'] == str(card.get('set', '')).lower() and info['cn'] == str(card.get('collector_number', '')).lower():
                                     best_match_idx = idx
                                     break
                                 elif best_match_idx == -1:
@@ -288,7 +292,10 @@ def download_image(url, corner_style):
         return background
     else:
         background = Image.new("RGB", img.size, (255, 255, 255))
-        background.paste(img, mask=img.split()[3] if len(img.split()) == 4 else None)
+        if img.mode == 'RGBA':
+            background.paste(img, mask=img.split()[3])
+        else:
+            background.paste(img)
         return background
 
 def generate_deck_pdf(card_metadata, output_filename, paper_size_tuple, corner_style):
@@ -357,7 +364,6 @@ def generate_deck_pdf(card_metadata, output_filename, paper_size_tuple, corner_s
 
 st.set_page_config(page_title="Proxyfy Beta by Nefpo", layout="wide")
 
-# Cyberpunk CSS Injection
 st.markdown("""
 <style>
     div[data-baseweb="select"] > div, 
@@ -371,7 +377,7 @@ st.markdown("""
     div[data-baseweb="input"] > div:focus-within,
     textarea:focus {
         border: 1px solid #FCEE0A !important;
-        box-shadow: 0 0 8px #FCEE0A60 !important;
+        box-shadow: 0 0 6px #FCEE0A40 !important;
     }
 
     div[data-testid="stButton"] > button[kind="primary"] {
@@ -382,14 +388,14 @@ st.markdown("""
         text-transform: uppercase;
         font-weight: bold;
         letter-spacing: 2px;
-        box-shadow: 0 0 10px #FCEE0A40;
+        box-shadow: 0 0 5px #FCEE0A30;
         transition: all 0.2s ease-in-out;
     }
     
     div[data-testid="stButton"] > button[kind="primary"]:hover {
         background-color: #FCEE0A !important;
         color: #000000 !important;
-        box-shadow: 0 0 20px #FCEE0A, 0 0 40px #FCEE0A !important;
+        box-shadow: 0 0 10px #FCEE0A, 0 0 20px #FCEE0A80 !important;
     }
 
     img {
@@ -399,8 +405,8 @@ st.markdown("""
     }
     img:hover {
         border: 1px solid #FCEE0A;
-        box-shadow: 0 0 15px #FCEE0A80;
-        transform: scale(1.02);
+        box-shadow: 0 0 8px #FCEE0A50;
+        transform: scale(1.01);
     }
     
     .stProgress > div > div > div > div {
@@ -430,9 +436,9 @@ with st.sidebar:
     st.markdown("---")
     st.header("Print Settings")
     corner_style = st.radio("Card Corners", ["Rounded", "Sharp (Square)"])
-    paper_size_name = st.selectbox("Paper Size", ["A4", "A3", "US Letter"])
+    paper_size_name = st.selectbox("Paper Size", ["A4", "A3", "US (Letter)", "US (Legal)"])
     
-    paper_sizes = {"A4": A4, "A3": A3, "US Letter": letter}
+    paper_sizes = {"A4": A4, "A3": A3, "US (Letter)": letter, "US (Legal)": legal}
     selected_paper = paper_sizes[paper_size_name]
 
 decklist_input = st.text_area("Paste your decklist here:", height=200)
