@@ -355,7 +355,7 @@ def generate_deck_pdf(card_metadata, output_filename, paper_size_tuple, corner_s
 # STREAMLIT USER INTERFACE & SESSION STATE
 # ==========================================
 
-st.set_page_config(page_title="Proxyfy Beta by Nefpo", layout="wide")
+st.set_page_config(page_title="Proxyfy by Nefpo", layout="wide")
 
 st.markdown("""
 <style>
