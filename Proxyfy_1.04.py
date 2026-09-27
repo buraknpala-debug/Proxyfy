@@ -16,7 +16,6 @@ CARD_WIDTH = 63 * mm
 CARD_HEIGHT = 88 * mm
 MARGIN_X = 5 * mm
 MARGIN_Y = 5 * mm
-SPACING = 2 * mm 
 
 def parse_decklist(decklist_text, cut_basic_lands=False):
     deck_dict = {}
@@ -291,7 +290,7 @@ def download_image(url, corner_style):
             background.paste(img)
         return background
 
-def generate_deck_pdf(card_metadata, output_filename, paper_size_tuple, corner_style):
+def generate_deck_pdf(card_metadata, output_filename, paper_size_tuple, corner_style, spacing):
     progress_bar = st.progress(0)
     status_text = st.empty()
     
@@ -303,8 +302,9 @@ def generate_deck_pdf(card_metadata, output_filename, paper_size_tuple, corner_s
     
     x_start = MARGIN_X
     y_start = page_height - MARGIN_Y - CARD_HEIGHT
-    max_cols = int((page_width - 2 * MARGIN_X + SPACING) // (CARD_WIDTH + SPACING))
-    max_rows = int((page_height - 2 * MARGIN_Y + SPACING) // (CARD_HEIGHT + SPACING))
+    
+    max_cols = int((page_width - 2 * MARGIN_X + spacing) // (CARD_WIDTH + spacing))
+    max_rows = int((page_height - 2 * MARGIN_Y + spacing) // (CARD_HEIGHT + spacing))
     
     col = 0
     row = 0
@@ -328,8 +328,8 @@ def generate_deck_pdf(card_metadata, output_filename, paper_size_tuple, corner_s
                 
             for _ in range(item['count']):
                 for img in downloaded_images:
-                    x = x_start + col * (CARD_WIDTH + SPACING)
-                    y = y_start - row * (CARD_HEIGHT + SPACING)
+                    x = x_start + col * (CARD_WIDTH + spacing)
+                    y = y_start - row * (CARD_HEIGHT + spacing)
                     
                     img_reader = ImageReader(img)
                     c.drawImage(img_reader, x, y, width=CARD_WIDTH, height=CARD_HEIGHT)
@@ -357,33 +357,27 @@ def generate_deck_pdf(card_metadata, output_filename, paper_size_tuple, corner_s
 
 st.set_page_config(page_title="Proxyfy Beta by Nefpo", layout="wide")
 
-# ABSOLUTES CYBERPUNK OVERRIDE CSS
 st.markdown("""
 <style>
-    /* 1. ABSOLUT ALLES ECKIG MACHEN */
     div, button, input, textarea, select, img, span, ul, li {
         border-radius: 0px !important;
     }
 
-    /* 2. ROT KILLEN UND DURCH NEON-GELB ERSETZEN (Radio & Checkbox) */
     div[data-baseweb="radio"] div[aria-checked="true"] > div,
     div[data-baseweb="checkbox"] div[aria-checked="true"] > div {
         background-color: #FCEE0A !important;
         border-color: #FCEE0A !important;
     }
     
-    /* Der innere Punkt bei ausgewählten Radio-Buttons */
     div[data-baseweb="radio"] div[aria-checked="true"] > div > div {
         background-color: #050505 !important;
     }
     
-    /* Der innere Haken bei ausgewählten Checkboxen */
     div[data-baseweb="checkbox"] div[aria-checked="true"] > div svg {
         fill: #050505 !important;
         color: #050505 !important;
     }
 
-    /* 3. DROPDOWN (SELECT) MENÜS */
     div[data-baseweb="select"] > div {
         border: 1px solid #333333 !important;
         background-color: transparent !important;
@@ -393,7 +387,6 @@ st.markdown("""
         box-shadow: 0 0 4px #FCEE0A40 !important;
     }
     
-    /* Das geöffnete Dropdown-Menü (Popover) stylen */
     div[data-baseweb="popover"] > div {
         background-color: #111111 !important;
         border: 1px solid #FCEE0A !important;
@@ -411,7 +404,6 @@ st.markdown("""
         background-color: #FCEE0A20 !important;
     }
 
-    /* 4. TEXT AREAS */
     div[data-baseweb="input"] > div, textarea {
         border: 1px solid #333333 !important;
     }
@@ -420,7 +412,6 @@ st.markdown("""
         box-shadow: 0 0 4px #FCEE0A40 !important;
     }
 
-    /* 5. PRIMARY BUTTONS */
     div[data-testid="stButton"] > button[kind="primary"] {
         background-color: transparent !important;
         color: #FCEE0A !important;
@@ -437,7 +428,6 @@ st.markdown("""
         box-shadow: 0 0 8px #FCEE0A, 0 0 15px #FCEE0A60 !important;
     }
 
-    /* 6. SECONDARY BUTTONS (CHANGE ART) */
     div[data-testid="stButton"] > button[kind="secondary"] {
         background-color: transparent !important;
         color: #E0E0E0 !important;
@@ -451,8 +441,19 @@ st.markdown("""
         color: #FCEE0A !important;
         box-shadow: 0 0 5px #FCEE0A40 !important;
     }
+    
+    div[data-testid="stFormSubmitButton"] > button {
+        background-color: transparent !important;
+        color: #FCEE0A !important;
+        border: 1px solid #FCEE0A !important;
+        border-radius: 0px !important;
+        width: 100%;
+    }
+    div[data-testid="stFormSubmitButton"] > button:hover {
+        background-color: #FCEE0A !important;
+        color: #000000 !important;
+    }
 
-    /* 7. BILDER & LADEBALKEN */
     img {
         border: 1px solid #222222;
         transition: all 0.2s;
@@ -499,11 +500,41 @@ with st.sidebar:
     
     st.markdown("---")
     st.header("Print Settings")
+    
+    cut_mode = st.radio("Layout Mode", ["Normal Mode", "Single Cut Mode (No Spacing)"])
+    actual_spacing = 0 if "Single" in cut_mode else (2 * mm)
+    
     corner_style = st.radio("Card Corners", ["Sharp (Square)", "Rounded"]) 
     paper_size_name = st.selectbox("Paper Size", ["A4", "A3", "US (Legal)"])
     
     paper_sizes = {"A4": A4, "A3": A3, "US (Legal)": legal}
     selected_paper = paper_sizes[paper_size_name]
+
+    # --- AUSGEBLENDETES FEEDBACK-FORMULAR ---
+    # Zum Aktivieren einfach die Rauten (#) am Anfang der Zeilen entfernen
+    # Die eleganteste Lösung für Streamlit ist formspree.io (Kostenlos, leitet Formular-Inputs als Mail an dich weiter)
+    
+    # st.markdown("---")
+    # st.header("Feedback & Bugs")
+    # with st.form("feedback_form"):
+    #     user_email = st.text_input("Your Email (optional)")
+    #     feedback_text = st.text_area("Got a suggestion or found a bug? Let me know!")
+    #     submitted = st.form_submit_button("Send Feedback")
+    #     if submitted:
+    #         if feedback_text.strip():
+    #             try:
+    #                 # HIER DIE FORMSPREE-URL EINTRAGEN (z.B. https://formspree.io/f/xyz...)
+    #                 feedback_url = "DEINE_FORMSPREE_URL_HIER_EINTRAGEN" 
+    #                 payload = {
+    #                     "email": user_email if user_email else "No email provided",
+    #                     "message": feedback_text.strip()
+    #                 }
+    #                 requests.post(feedback_url, json=payload, timeout=3)
+    #                 st.success("Thanks for your feedback!")
+    #             except Exception:
+    #                 st.error("Something went wrong.")
+    #         else:
+    #             st.warning("Please enter a message first.")
 
 decklist_input = st.text_area("Paste your decklist here:", height=200)
 
@@ -615,26 +646,13 @@ if st.session_state.preview_cards is not None:
         
         if st.button("Generate Print-Ready PDF", type="primary", use_container_width=True):
             pdf_filename = "Proxyfy_Deck.pdf"
-            images_added = generate_deck_pdf(st.session_state.preview_cards, pdf_filename, selected_paper, corner_style.split()[0])
+            images_added = generate_deck_pdf(st.session_state.preview_cards, pdf_filename, selected_paper, corner_style.split()[0], actual_spacing)
             
             if images_added > 0 and os.path.exists(pdf_filename):
                 with open(pdf_filename, "rb") as pdf_file:
                     st.session_state.pdf_data = pdf_file.read()
                     st.session_state.pdf_ready = True
                     st.session_state.images_added = images_added
-                
-                try:
-                    webhook_url = "DEINE_MAKE_COM_WEBHOOK_URL_HIER_EINTRAGEN"
-                    payload = {
-                        "event": "pdf_generated",
-                        "cards_total": images_added,
-                        "fancy_mode": fancy_mode,
-                        "lang": lang_code,
-                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-                    }
-                    requests.post(webhook_url, json=payload, timeout=2)
-                except Exception:
-                    pass
                     
         if st.session_state.pdf_ready and st.session_state.pdf_data is not None:
             st.success(f"Success: {st.session_state.images_added} cards generated on {paper_size_name} paper with {corner_style.lower()} corners.")
