@@ -5,6 +5,7 @@ import re
 import time
 import requests
 import concurrent.futures
+import copy
 from io import BytesIO
 from PIL import Image, ImageDraw
 from reportlab.pdfgen import canvas
@@ -44,7 +45,8 @@ def parse_decklist(decklist_text, cut_basic_lands=False):
             
         set_code = ""
         cn = ""
-        match = re.search(r'\(([^)]+)\)\s*([a-zA-Z0-9★_]+)?$', rest)
+        # FIX: Erkennt nun runde () UND eckige [] Klammern für Set-Codes (wichtig für Tokens)
+        match = re.search(r'[\(\[]([^)\]]+)[\)\]]\s*([a-zA-Z0-9★_]+)?$', rest)
         if match:
             set_code = match.group(1).lower()
             cn = match.group(2) if match.group(2) else ""
@@ -369,6 +371,20 @@ def generate_deck_pdf(card_metadata, output_filename, paper_size_tuple, corner_s
         
     return images_added
 
+def sort_preview_cards(cards):
+    def sort_key(c):
+        main_type = c['type'].split('—')[0].lower()
+        if 'basic land' in main_type: return 90
+        elif 'land' in main_type: return 80
+        elif 'creature' in main_type: return 10
+        elif 'planeswalker' in main_type: return 20
+        elif 'artifact' in main_type: return 30
+        elif 'enchantment' in main_type: return 40
+        elif 'instant' in main_type or 'sorcery' in main_type: return 50
+        else: return 60
+    if cards:
+        cards.sort(key=sort_key)
+
 # ==========================================
 # STREAMLIT USER INTERFACE & SESSION STATE
 # ==========================================
@@ -474,11 +490,17 @@ st.markdown("""
         color: #000000 !important;
     }
 
-    img {
+    /* FIX: Image Grid Alignment für Mobile und iPad */
+    [data-testid="column"] img {
+        width: 100% !important;
+        height: auto !important;
+        aspect-ratio: 63 / 88 !important;
+        object-fit: contain !important;
+        display: block;
         border: 1px solid #222222;
         transition: all 0.2s;
     }
-    img:hover {
+    [data-testid="column"] img:hover {
         border: 1px solid #FCEE0A;
         box-shadow: 0 0 6px #FCEE0A40;
         transform: scale(1.01);
@@ -554,29 +576,6 @@ with st.sidebar:
     
     paper_sizes = {"A4": A4, "A3": A3, "US (Legal)": legal}
     selected_paper = paper_sizes[paper_size_name]
-
-    # --- AUSGEBLENDETES FEEDBACK-FORMULAR ---
-    # st.markdown("---")
-    # st.header("Feedback & Bugs")
-    # with st.form("feedback_form"):
-    #     user_email = st.text_input("Your Email (optional)")
-    #     feedback_text = st.text_area("Got a suggestion or found a bug? Let me know!")
-    #     submitted = st.form_submit_button("Send Feedback")
-    #     if submitted:
-    #         if feedback_text.strip():
-    #             try:
-    #                 # HIER DIE FORMSPREE-URL EINTRAGEN (z.B. https://formspree.io/f/xyz...)
-    #                 feedback_url = "DEINE_FORMSPREE_URL_HIER_EINTRAGEN" 
-    #                 payload = {
-    #                     "email": user_email if user_email else "No email provided",
-    #                     "message": feedback_text.strip()
-    #                 }
-    #                 requests.post(feedback_url, json=payload, timeout=3)
-    #                 st.success("Thanks for your feedback!")
-    #             except Exception:
-    #                 st.error("Something went wrong.")
-    #         else:
-    #             st.warning("Please enter a message first.")
     
     st.markdown('<a href="#top" target="_self" class="tp-to-top-btn">TP to the Top</a>', unsafe_allow_html=True)
 
@@ -596,22 +595,7 @@ if st.button("Load Cards & Show Preview", type="primary"):
         
         with st.spinner("Fetching card data from Scryfall..."):
             cards, errors = get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang_code, art_style, set_code.strip(), fancy_mode)
-            
-            def sort_key(c):
-                main_type = c['type'].split('—')[0].lower()
-                num_colors = len(c['colors'])
-                if 'basic land' in main_type: return 90
-                elif 'land' in main_type: return 80
-                elif 'creature' in main_type:
-                    return 10 - num_colors if num_colors > 1 else (15 if num_colors == 1 else 20)
-                elif 'planeswalker' in main_type: return 30
-                elif 'instant' in main_type or 'sorcery' in main_type: return 40
-                elif 'enchantment' in main_type: return 50
-                elif 'artifact' in main_type: return 60
-                else: return 70
-                
-            if cards:
-                cards.sort(key=sort_key)
+            sort_preview_cards(cards)
             
             st.session_state.preview_cards = cards
             st.session_state.error_log = errors
@@ -626,11 +610,19 @@ if st.session_state.preview_cards is not None:
         edit_idx = st.session_state.editing_idx
         active_card = st.session_state.preview_cards[edit_idx]
         
-        st.subheader(f"Editing Artwork: {active_card['name']}")
-        if st.button("Cancel & Return to Deck", key="cancel_edit"):
-            st.session_state.editing_idx = None
-            st.session_state.variants_data = None
-            st.rerun()
+        st.subheader(f"Editing Artwork: {active_card['name']} ({active_card['count']} copies available)")
+        
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            split_count = st.number_input("Copies to apply this art to:", min_value=1, max_value=active_card['count'], value=active_card['count'])
+        with col2:
+            st.write("")
+            st.write("")
+            if st.button("Cancel & Return to Deck", key="cancel_edit"):
+                st.session_state.editing_idx = None
+                st.session_state.variants_data = None
+                sort_preview_cards(st.session_state.preview_cards)
+                st.rerun()
             
         if st.session_state.variants_data is None:
             with st.spinner("Loading all available artworks..."):
@@ -661,11 +653,24 @@ if st.session_state.preview_cards is not None:
                         c_num = v_card.get('collector_number', '')
                         
                         if st.button(f"Select {set_name} #{c_num}", key=f"sel_var_{v_idx}"):
-                            st.session_state.preview_cards[edit_idx]['urls'] = v_img_urls
-                            st.session_state.editing_idx = None
-                            st.session_state.variants_data = None
-                            st.session_state.pdf_ready = False 
-                            st.rerun()
+                            if split_count < active_card['count']:
+                                leftover_card = copy.deepcopy(active_card)
+                                leftover_card['count'] = active_card['count'] - split_count
+                                
+                                st.session_state.preview_cards[edit_idx]['count'] = split_count
+                                st.session_state.preview_cards[edit_idx]['urls'] = v_img_urls
+                                
+                                st.session_state.preview_cards.append(leftover_card)
+                                st.session_state.editing_idx = len(st.session_state.preview_cards) - 1
+                                st.session_state.pdf_ready = False 
+                                st.rerun()
+                            else:
+                                st.session_state.preview_cards[edit_idx]['urls'] = v_img_urls
+                                st.session_state.editing_idx = None
+                                st.session_state.variants_data = None
+                                st.session_state.pdf_ready = False 
+                                sort_preview_cards(st.session_state.preview_cards)
+                                st.rerun()
         else:
             st.warning("No other artworks found for this card.")
             
