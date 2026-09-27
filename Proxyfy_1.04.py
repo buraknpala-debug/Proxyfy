@@ -7,7 +7,7 @@ import concurrent.futures
 from io import BytesIO
 from PIL import Image, ImageDraw
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4, A3, letter, legal
+from reportlab.lib.pagesizes import A4, A3, legal
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 
@@ -137,18 +137,15 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
                 response = requests.get("https://api.scryfall.com/cards/search", params={'q': q}, headers=headers)
                 if response.status_code == 200:
                     data = response.json()
-                    
                     for key in chunk:
                         info = deck_dict[key]
                         orig_lower = info['name'].lower()
                         matching_prints = []
-                        
                         for card in data.get('data', []):
                             card_name = card['name'].lower()
                             faces = [f.strip() for f in card_name.split('//')]
                             if orig_lower == card_name or orig_lower in faces:
                                 matching_prints.append(card)
-                                
                         if matching_prints:
                             def get_price(c):
                                 prices = c.get('prices', {})
@@ -163,7 +160,6 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
                     still_missing.extend(chunk)
             except:
                 still_missing.extend(chunk)
-                
         remaining_keys = list(dict.fromkeys(still_missing))
         current_step += 1
 
@@ -211,15 +207,12 @@ def get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang, art_
                     for key in chunk:
                         if key in found_in_batch:
                             continue
-                            
                         info = deck_dict[key]
                         orig_lower = info['name'].lower()
                         best_match_idx = -1
-                        
                         for idx, card in enumerate(available_cards):
                             card_name = card['name'].lower()
                             faces = [f.strip() for f in card_name.split('//')]
-                            
                             if orig_lower == card_name or orig_lower in faces:
                                 if info['set'] == str(card.get('set', '')).lower() and info['cn'] == str(card.get('collector_number', '')).lower():
                                     best_match_idx = idx
@@ -291,7 +284,8 @@ def download_image(url, corner_style):
         background.paste(img, mask=mask)
         return background
     else:
-        background = Image.new("RGB", img.size, (255, 255, 255))
+        # Füllt die runden Scryfall-Ecken mit tiefschwarz auf für ein perfektes Schneiderechteck
+        background = Image.new("RGB", img.size, (0, 0, 0)) 
         if img.mode == 'RGBA':
             background.paste(img, mask=img.split()[3])
         else:
@@ -380,6 +374,7 @@ st.markdown("""
         box-shadow: 0 0 4px #FCEE0A40 !important;
     }
 
+    /* Primary Button Style */
     div[data-testid="stButton"] > button[kind="primary"] {
         background-color: transparent !important;
         color: #FCEE0A !important;
@@ -391,11 +386,26 @@ st.markdown("""
         box-shadow: 0 0 3px #FCEE0A30;
         transition: all 0.2s ease-in-out;
     }
-    
     div[data-testid="stButton"] > button[kind="primary"]:hover {
         background-color: #FCEE0A !important;
         color: #000000 !important;
         box-shadow: 0 0 8px #FCEE0A, 0 0 15px #FCEE0A60 !important;
+    }
+
+    /* Secondary Button Style (For 'Change Art' and 'Select') */
+    div[data-testid="stButton"] > button[kind="secondary"] {
+        background-color: transparent !important;
+        color: #E0E0E0 !important;
+        border: 1px solid #444444 !important;
+        border-radius: 0px !important;
+        transition: all 0.2s ease-in-out;
+        padding: 2px 10px;
+        width: 100%;
+    }
+    div[data-testid="stButton"] > button[kind="secondary"]:hover {
+        border: 1px solid #FCEE0A !important;
+        color: #FCEE0A !important;
+        box-shadow: 0 0 5px #FCEE0A40 !important;
     }
 
     img {
@@ -426,6 +436,10 @@ if 'pdf_data' not in st.session_state:
     st.session_state.pdf_data = None
 if 'images_added' not in st.session_state:
     st.session_state.images_added = 0
+if 'editing_idx' not in st.session_state:
+    st.session_state.editing_idx = None
+if 'variants_data' not in st.session_state:
+    st.session_state.variants_data = None
 
 st.title("Proxyfy Beta by Nefpo")
 st.write("Generate print-ready PDFs with lossless PNG quality.")
@@ -441,7 +455,7 @@ with st.sidebar:
     
     st.markdown("---")
     st.header("Print Settings")
-    corner_style = st.radio("Card Corners", ["Rounded", "Sharp (Square)"])
+    corner_style = st.radio("Card Corners", ["Sharp (Square)", "Rounded"]) # Sharp als Standard
     paper_size_name = st.selectbox("Paper Size", ["A4", "A3", "US (Legal)"])
     
     paper_sizes = {"A4": A4, "A3": A3, "US (Legal)": legal}
@@ -452,6 +466,7 @@ decklist_input = st.text_area("Paste your decklist here:", height=200)
 if st.button("Load Cards & Show Preview", type="primary"):
     st.session_state.pdf_ready = False 
     st.session_state.pdf_data = None
+    st.session_state.editing_idx = None
     
     if decklist_input.strip() == "":
         st.error("Please enter a decklist first.")
@@ -487,49 +502,106 @@ if st.button("Load Cards & Show Preview", type="primary"):
 
 if st.session_state.preview_cards is not None:
     st.markdown("---")
-    st.subheader(f"Deck Preview ({sum(c['count'] for c in st.session_state.preview_cards)} Cards)")
     
-    if st.session_state.error_log:
-        st.warning("The following cards could not be found:")
-        for card, err in st.session_state.error_log.items():
-            st.write(f"- {card}: {err}")
-    
-    cols = st.columns(5)
-    for idx, card in enumerate(st.session_state.preview_cards):
-        with cols[idx % 5]:
-            st.image(card['urls'][0], caption=f"{card['count']}x {card['name']}", use_container_width=True)
-    
-    st.markdown("---")
-    
-    if st.button("Generate Print-Ready PDF", type="primary", use_container_width=True):
-        pdf_filename = "Proxyfy_Deck.pdf"
-        images_added = generate_deck_pdf(st.session_state.preview_cards, pdf_filename, selected_paper, corner_style.split()[0])
+    # --- ON-THE-FLY ARTWORK SELECTOR ---
+    if st.session_state.editing_idx is not None:
+        edit_idx = st.session_state.editing_idx
+        active_card = st.session_state.preview_cards[edit_idx]
         
-        if images_added > 0 and os.path.exists(pdf_filename):
-            with open(pdf_filename, "rb") as pdf_file:
-                st.session_state.pdf_data = pdf_file.read()
-                st.session_state.pdf_ready = True
-                st.session_state.images_added = images_added
+        st.subheader(f"Editing Artwork: {active_card['name']}")
+        if st.button("Cancel & Return to Deck", key="cancel_edit"):
+            st.session_state.editing_idx = None
+            st.session_state.variants_data = None
+            st.rerun()
             
-            try:
-                webhook_url = "DEINE_MAKE_COM_WEBHOOK_URL_HIER_EINTRAGEN"
-                payload = {
-                    "event": "pdf_generated",
-                    "cards_total": images_added,
-                    "fancy_mode": fancy_mode,
-                    "lang": lang_code,
-                    "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-                }
-                requests.post(webhook_url, json=payload, timeout=2)
-            except Exception:
-                pass
+        if st.session_state.variants_data is None:
+            with st.spinner("Loading all available artworks..."):
+                safe_name = active_card['name'].replace('"', '')
+                q = f'!"{safe_name}" include:extras unique:prints'
+                res = requests.get("https://api.scryfall.com/cards/search", params={'q': q})
+                if res.status_code == 200:
+                    st.session_state.variants_data = res.json().get('data', [])
+                else:
+                    st.session_state.variants_data = []
+                    
+        variants = st.session_state.variants_data
+        if variants:
+            v_cols = st.columns(5)
+            for v_idx, v_card in enumerate(variants):
+                with v_cols[v_idx % 5]:
+                    # Extract URLs for the variant
+                    v_img_urls = []
+                    if 'image_uris' in v_card:
+                        v_img_urls.append(v_card['image_uris'].get('png', v_card['image_uris'].get('large')))
+                    elif 'card_faces' in v_card:
+                        for face in v_card['card_faces']:
+                            f_url = face.get('image_uris', {}).get('png', face.get('image_uris', {}).get('large'))
+                            if f_url: v_img_urls.append(f_url)
+                            
+                    if v_img_urls:
+                        st.image(v_img_urls[0], use_container_width=True)
+                        set_name = v_card.get('set', '').upper()
+                        c_num = v_card.get('collector_number', '')
+                        
+                        # Apply selection
+                        if st.button(f"Select {set_name} #{c_num}", key=f"sel_var_{v_idx}"):
+                            st.session_state.preview_cards[edit_idx]['urls'] = v_img_urls
+                            st.session_state.editing_idx = None
+                            st.session_state.variants_data = None
+                            st.session_state.pdf_ready = False # PDF muss neu generiert werden
+                            st.rerun()
+        else:
+            st.warning("No other artworks found for this card.")
+            
+    # --- STANDARD DECK PREVIEW ---
+    else:
+        st.subheader(f"Deck Preview ({sum(c['count'] for c in st.session_state.preview_cards)} Cards)")
+        
+        if st.session_state.error_log:
+            st.warning("The following cards could not be found:")
+            for card, err in st.session_state.error_log.items():
+                st.write(f"- {card}: {err}")
+        
+        cols = st.columns(5)
+        for idx, card in enumerate(st.session_state.preview_cards):
+            with cols[idx % 5]:
+                st.image(card['urls'][0], caption=f"{card['count']}x {card['name']}", use_container_width=True)
+                if st.button("Change Art", key=f"change_art_{idx}"):
+                    st.session_state.editing_idx = idx
+                    st.session_state.variants_data = None
+                    st.rerun()
+        
+        st.markdown("---")
+        
+        if st.button("Generate Print-Ready PDF", type="primary", use_container_width=True):
+            pdf_filename = "Proxyfy_Deck.pdf"
+            images_added = generate_deck_pdf(st.session_state.preview_cards, pdf_filename, selected_paper, corner_style.split()[0])
+            
+            if images_added > 0 and os.path.exists(pdf_filename):
+                with open(pdf_filename, "rb") as pdf_file:
+                    st.session_state.pdf_data = pdf_file.read()
+                    st.session_state.pdf_ready = True
+                    st.session_state.images_added = images_added
                 
-    if st.session_state.pdf_ready and st.session_state.pdf_data is not None:
-        st.success(f"Success: {st.session_state.images_added} cards generated on {paper_size_name} paper with {corner_style.lower()} corners.")
-        st.download_button(
-            label="Download PDF",
-            data=st.session_state.pdf_data,
-            file_name="Proxyfy_Deck.pdf",
-            mime="application/pdf",
-            use_container_width=True
-        )
+                try:
+                    webhook_url = "DEINE_MAKE_COM_WEBHOOK_URL_HIER_EINTRAGEN"
+                    payload = {
+                        "event": "pdf_generated",
+                        "cards_total": images_added,
+                        "fancy_mode": fancy_mode,
+                        "lang": lang_code,
+                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    requests.post(webhook_url, json=payload, timeout=2)
+                except Exception:
+                    pass
+                    
+        if st.session_state.pdf_ready and st.session_state.pdf_data is not None:
+            st.success(f"Success: {st.session_state.images_added} cards generated on {paper_size_name} paper with {corner_style.lower()} corners.")
+            st.download_button(
+                label="Download PDF",
+                data=st.session_state.pdf_data,
+                file_name="Proxyfy_Deck.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
