@@ -512,9 +512,6 @@ with st.sidebar:
     selected_paper = paper_sizes[paper_size_name]
 
     # --- AUSGEBLENDETES FEEDBACK-FORMULAR ---
-    # Zum Aktivieren einfach die Rauten (#) am Anfang der Zeilen entfernen
-    # Die eleganteste Lösung für Streamlit ist formspree.io (Kostenlos, leitet Formular-Inputs als Mail an dich weiter)
-    
     # st.markdown("---")
     # st.header("Feedback & Bugs")
     # with st.form("feedback_form"):
@@ -666,7 +663,6 @@ if st.session_state.preview_cards is not None:
             )
 
 # --- SCROLL TO TOP BUTTON (CYBERPUNK STYLE) ---
-# Muss exakt hier stehen (ohne Einrückung), damit das JavaScript immer aktiv wird
 components.html(
     """
     <script>
@@ -675,11 +671,11 @@ components.html(
 
     if (!btn) {
         btn = doc.createElement("button");
-        btn.innerHTML = "▲";
+        btn.innerHTML = "▲ TOP";
         btn.id = "cyberpunkScrollBtn";
         
         // Cyberpunk Styling
-        btn.style.cssText = "display: none; position: fixed; bottom: 40px; right: 40px; z-index: 9999; background-color: #050505; color: #FCEE0A; border: 2px solid #FCEE0A; padding: 10px 15px; font-size: 20px; font-weight: bold; cursor: pointer; box-shadow: 0 0 5px #FCEE0A40; transition: all 0.2s ease-in-out; border-radius: 0px;";
+        btn.style.cssText = "display: none; position: fixed; bottom: 40px; right: 40px; z-index: 999999; background-color: #050505; color: #FCEE0A; border: 2px solid #FCEE0A; padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 0 5px #FCEE0A40; transition: background-color 0.2s, color 0.2s, box-shadow 0.2s; border-radius: 0px;";
         
         // Hover-Effekte
         btn.onmouseover = function() {
@@ -693,31 +689,38 @@ components.html(
             this.style.boxShadow = "0 0 5px #FCEE0A40";
         };
 
-        // Klick nach oben
+        // Klick-Funktion: Sofort (Instant) nach oben
         btn.onclick = function() {
-            const container = doc.querySelector('.main') || doc.querySelector('[data-testid="stAppViewContainer"]') || doc.documentElement;
-            container.scrollTo({top: 0, behavior: 'smooth'});
-            window.parent.scrollTo({top: 0, behavior: 'smooth'});
+            const containers = [
+                doc.querySelector('[data-testid="stAppViewContainer"]'),
+                doc.querySelector('.main'),
+                doc.documentElement,
+                doc.body,
+                window.parent
+            ];
+            containers.forEach(c => {
+                if (c) {
+                    if (typeof c.scrollTo === 'function') {
+                        c.scrollTo({top: 0, behavior: 'auto'}); // 'auto' erzwingt instant scroll
+                    }
+                    c.scrollTop = 0;
+                }
+            });
         };
 
         doc.body.appendChild(btn);
 
-        // Auftauchen nach 300px
-        const scrollContainer = doc.querySelector('.main') || doc.querySelector('[data-testid="stAppViewContainer"]') || window.parent;
-        scrollContainer.addEventListener('scroll', function() {
-            let scrollPos = 0;
-            if (this.scrollTop !== undefined) {
-                scrollPos = this.scrollTop;
-            } else {
-                scrollPos = window.parent.scrollY;
-            }
+        // Überwacht aktiv alle 250ms die Scroll-Position (Bulletproof für Streamlit)
+        setInterval(function() {
+            const container = doc.querySelector('[data-testid="stAppViewContainer"]') || doc.documentElement;
+            const scrollPos = container.scrollTop || window.parent.scrollY || 0;
             
             if (scrollPos > 300) {
                 btn.style.display = "block";
             } else {
                 btn.style.display = "none";
             }
-        });
+        }, 250);
     }
     </script>
     """,
