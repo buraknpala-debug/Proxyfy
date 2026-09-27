@@ -1,3 +1,4 @@
+import streamlit.components.v1 as components
 import streamlit as st
 import os
 import re
@@ -663,3 +664,61 @@ if st.session_state.preview_cards is not None:
                 mime="application/pdf",
                 use_container_width=True
             )
+            # --- SCROLL TO TOP BUTTON (CYBERPUNK STYLE) ---
+components.html(
+    """
+    <script>
+    const doc = window.parent.document;
+    let btn = doc.getElementById("cyberpunkScrollBtn");
+
+    if (!btn) {
+        btn = doc.createElement("button");
+        btn.innerHTML = "▲";
+        btn.id = "cyberpunkScrollBtn";
+        
+        // Cyberpunk Styling
+        btn.style.cssText = "display: none; position: fixed; bottom: 40px; right: 40px; z-index: 9999; background-color: #050505; color: #FCEE0A; border: 2px solid #FCEE0A; padding: 10px 15px; font-size: 20px; font-weight: bold; cursor: pointer; box-shadow: 0 0 5px #FCEE0A40; transition: all 0.2s ease-in-out; border-radius: 0px;";
+        
+        // Hover-Effekte (Leuchten)
+        btn.onmouseover = function() {
+            this.style.backgroundColor = "#FCEE0A";
+            this.style.color = "#000000";
+            this.style.boxShadow = "0 0 15px #FCEE0A80";
+        };
+        btn.onmouseout = function() {
+            this.style.backgroundColor = "#050505";
+            this.style.color = "#FCEE0A";
+            this.style.boxShadow = "0 0 5px #FCEE0A40";
+        };
+
+        // Klick-Funktion: Sanft nach oben scrollen
+        btn.onclick = function() {
+            const container = doc.querySelector('.main') || doc.querySelector('[data-testid="stAppViewContainer"]') || doc.documentElement;
+            container.scrollTo({top: 0, behavior: 'smooth'});
+            window.parent.scrollTo({top: 0, behavior: 'smooth'});
+        };
+
+        doc.body.appendChild(btn);
+
+        // Wann soll der Button auftauchen? (Nach 300px scrollen)
+        const scrollContainer = doc.querySelector('.main') || doc.querySelector('[data-testid="stAppViewContainer"]') || window.parent;
+        scrollContainer.addEventListener('scroll', function() {
+            let scrollPos = 0;
+            if (this.scrollTop !== undefined) {
+                scrollPos = this.scrollTop;
+            } else {
+                scrollPos = window.parent.scrollY;
+            }
+            
+            if (scrollPos > 300) {
+                btn.style.display = "block";
+            } else {
+                btn.style.display = "none";
+            }
+        });
+    }
+    </script>
+    """,
+    height=0,
+    width=0,
+)
