@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import os
 import re
 import time
@@ -358,6 +357,9 @@ def generate_deck_pdf(card_metadata, output_filename, paper_size_tuple, corner_s
 
 st.set_page_config(page_title="Proxyfy by Nefpo", layout="wide")
 
+# Unsichtbarer Anker ganz oben auf der Seite
+st.markdown('<div id="top"></div>', unsafe_allow_html=True)
+
 st.markdown("""
 <style>
     div, button, input, textarea, select, img, span, ul, li {
@@ -469,6 +471,32 @@ st.markdown("""
         background-color: #FCEE0A !important;
         box-shadow: 0 0 8px #FCEE0A !important;
     }
+    
+    /* PURE CSS SCROLL TO TOP BUTTON (STICKY IN SIDEBAR) */
+    a.tp-to-top-btn {
+        display: block !important;
+        position: sticky !important;
+        bottom: 20px !important;
+        margin-top: 40px !important;
+        width: 100% !important;
+        background-color: #050505 !important;
+        color: #FCEE0A !important;
+        border: 2px solid #FCEE0A !important;
+        padding: 10px 0px !important;
+        font-size: 16px !important;
+        font-weight: bold !important;
+        text-align: center !important;
+        text-decoration: none !important;
+        text-transform: uppercase !important;
+        letter-spacing: 2px !important;
+        z-index: 999999 !important;
+        transition: all 0.2s ease-in-out !important;
+    }
+    a.tp-to-top-btn:hover {
+        background-color: #FCEE0A !important;
+        color: #000000 !important;
+        box-shadow: 0 0 15px #FCEE0A80 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -510,6 +538,32 @@ with st.sidebar:
     
     paper_sizes = {"A4": A4, "A3": A3, "US (Legal)": legal}
     selected_paper = paper_sizes[paper_size_name]
+
+    # --- AUSGEBLENDETES FEEDBACK-FORMULAR ---
+    # st.markdown("---")
+    # st.header("Feedback & Bugs")
+    # with st.form("feedback_form"):
+    #     user_email = st.text_input("Your Email (optional)")
+    #     feedback_text = st.text_area("Got a suggestion or found a bug? Let me know!")
+    #     submitted = st.form_submit_button("Send Feedback")
+    #     if submitted:
+    #         if feedback_text.strip():
+    #             try:
+    #                 # HIER DIE FORMSPREE-URL EINTRAGEN (z.B. https://formspree.io/f/xyz...)
+    #                 feedback_url = "DEINE_FORMSPREE_URL_HIER_EINTRAGEN" 
+    #                 payload = {
+    #                     "email": user_email if user_email else "No email provided",
+    #                     "message": feedback_text.strip()
+    #                 }
+    #                 requests.post(feedback_url, json=payload, timeout=3)
+    #                 st.success("Thanks for your feedback!")
+    #             except Exception:
+    #                 st.error("Something went wrong.")
+    #         else:
+    #             st.warning("Please enter a message first.")
+    
+    # --- TP TO THE TOP BUTTON (NATIVE HTML/CSS) ---
+    st.markdown('<a href="#top" target="_self" class="tp-to-top-btn">TP to the Top</a>', unsafe_allow_html=True)
 
 decklist_input = st.text_area("Paste your decklist here:", height=200)
 
@@ -638,69 +692,3 @@ if st.session_state.preview_cards is not None:
                 mime="application/pdf",
                 use_container_width=True
             )
-
-# --- SCROLL TO TOP BUTTON (CYBERPUNK STYLE - POSITIONED BOTTOM LEFT IN SIDEBAR) ---
-components.html(
-    """
-    <script>
-    const doc = window.parent.document;
-    let btn = doc.getElementById("cyberpunkScrollBtn");
-
-    if (!btn) {
-        btn = doc.createElement("button");
-        btn.innerHTML = "TP to the Top";
-        btn.id = "cyberpunkScrollBtn";
-        
-        // Cyberpunk Styling - Positioniert unten links (wie in der Skizze)
-        btn.style.cssText = "display: none; position: fixed; bottom: 30px; left: 20px; z-index: 999999; background-color: #050505; color: #FCEE0A; border: 2px solid #FCEE0A; padding: 10px 20px; width: 250px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 0 5px #FCEE0A40; transition: background-color 0.2s, color 0.2s, box-shadow 0.2s; border-radius: 0px;";
-        
-        // Hover-Effekte
-        btn.onmouseover = function() {
-            this.style.backgroundColor = "#FCEE0A";
-            this.style.color = "#000000";
-            this.style.boxShadow = "0 0 15px #FCEE0A80";
-        };
-        btn.onmouseout = function() {
-            this.style.backgroundColor = "#050505";
-            this.style.color = "#FCEE0A";
-            this.style.boxShadow = "0 0 5px #FCEE0A40";
-        };
-
-        // Klick-Funktion: Sofort (Instant) nach oben
-        btn.onclick = function() {
-            const containers = [
-                doc.querySelector('[data-testid="stAppViewContainer"]'),
-                doc.querySelector('.main'),
-                doc.documentElement,
-                doc.body,
-                window.parent
-            ];
-            containers.forEach(c => {
-                if (c) {
-                    if (typeof c.scrollTo === 'function') {
-                        c.scrollTo({top: 0, behavior: 'auto'});
-                    }
-                    c.scrollTop = 0;
-                }
-            });
-        };
-
-        doc.body.appendChild(btn);
-
-        // Überwacht aktiv die Scroll-Position
-        setInterval(function() {
-            const container = doc.querySelector('[data-testid="stAppViewContainer"]') || doc.documentElement;
-            const scrollPos = container.scrollTop || window.parent.scrollY || 0;
-            
-            if (scrollPos > 300) {
-                btn.style.display = "block";
-            } else {
-                btn.style.display = "none";
-            }
-        }, 250);
-    }
-    </script>
-    """,
-    height=0,
-    width=0,
-)
