@@ -315,8 +315,6 @@ def generate_deck_pdf(card_metadata, output_filename, paper_size_tuple, corner_s
     c = canvas.Canvas(output_filename, pagesize=paper_size_tuple)
     page_width, page_height = paper_size_tuple
     
-    # --- V2.2: SUPER CUT MODE LOGIK ---
-    # Wenn Spacing 0 ist, schieben wir alles komplett bündig in die linke, obere Ecke.
     if spacing == 0:
         current_margin_x = 0
         current_margin_y = 0
@@ -598,20 +596,35 @@ st.markdown("""
         }
     }
 
+    /* V2.3: SATISFYING GEOMETRIC SNAP SPINNER & LOADING TEXT */
+    
+    /* Shape Cycle: 6 forms. Each form takes 1 second. Total 6 seconds. */
     @keyframes shapeJump {
-        0%, 23% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,15 85,85 15,85" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
-        24%, 48% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect x="18" y="18" width="64" height="64" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
-        49%, 73% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,12 88,40 73,85 27,85 12,40" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
-        74%, 100% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="35" fill="none" stroke="%23E0E0E0" stroke-width="8"/></svg>'); }
+        0%, 15% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,15 85,85 15,85" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
+        16.66%, 31.66% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
+        33.33%, 48.33% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,12 88,40 73,85 27,85 12,40" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
+        50%, 65% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,10 85,30 85,70 50,90 15,70 15,30" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
+        66.66%, 81.66% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="35,10 65,10 90,35 90,65 65,90 35,90 10,65 10,35" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
+        83.33%, 98.33% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="%23E0E0E0" stroke-width="8"/></svg>'); }
+        100% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,15 85,85 15,85" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
     }
 
+    /* Tension Spin: Stillhalten (0-65%), dann explosiver 360 Spin (65-100%) pro 1 Sekunde */
     @keyframes customRotate {
-        0% { transform: rotate(0deg); animation-timing-function: linear; }
-        33% { transform: rotate(120deg); animation-timing-function: cubic-bezier(0.5, 0, 0.8, 1); }
+        0%, 65% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.8, 0, 0.2, 1); }
         100% { transform: rotate(360deg); }
     }
+    
+    /* Loading Dots Animation */
+    @keyframes loadingDots {
+        0%, 24% { content: "LOADING"; }
+        25%, 49% { content: "LOADING."; }
+        50%, 74% { content: "LOADING.."; }
+        75%, 100% { content: "LOADING..."; }
+    }
 
-    div[data-testid="stSpinner"] > div:first-child {
+    /* Streamlit Text verstecken, wir bauen ihn selbst! */
+    div[data-testid="stSpinner"] > div {
         display: none !important;
     }
     
@@ -621,15 +634,26 @@ st.markdown("""
         gap: 15px;
     }
     
+    /* Geometrische Formen */
     div[data-testid="stSpinner"]::before {
         content: "";
         display: inline-block;
-        width: 25px;
-        height: 25px;
+        width: 30px;
+        height: 30px;
         background-size: contain;
         background-repeat: no-repeat;
         background-position: center;
-        animation: shapeJump 6s infinite, customRotate 1.5s infinite;
+        animation: shapeJump 6s infinite, customRotate 1s infinite;
+    }
+    
+    /* Eigener, animierter Loading-Text */
+    div[data-testid="stSpinner"]::after {
+        content: "LOADING";
+        color: #FCEE0A;
+        font-weight: bold;
+        letter-spacing: 2px;
+        font-size: 16px;
+        animation: loadingDots 2s infinite;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -648,6 +672,8 @@ if 'editing_idx' not in st.session_state:
     st.session_state.editing_idx = None
 if 'variants_data' not in st.session_state:
     st.session_state.variants_data = None
+if 'file_size_mb' not in st.session_state:
+    st.session_state.file_size_mb = None
 
 st.title("Proxyfy by Nefpo")
 st.write("Free print-ready PDFs with lossless PNG quality.")
@@ -685,6 +711,7 @@ if st.button("Load Cards & Show Preview", type="primary"):
     st.session_state.pdf_ready = False 
     st.session_state.pdf_data = None
     st.session_state.editing_idx = None
+    st.session_state.file_size_mb = None
     
     if decklist_input.strip() == "":
         st.error("Please enter a decklist first.")
@@ -853,15 +880,22 @@ if st.session_state.preview_cards is not None:
                 images_added = generate_deck_pdf(st.session_state.preview_cards, pdf_filename, selected_paper, corner_style.split()[0], actual_spacing)
             
             if images_added > 0 and os.path.exists(pdf_filename):
+                # V2.3: FILE SIZE CALCULATOR HINZUGEFÜGT
+                file_size_bytes = os.path.getsize(pdf_filename)
+                st.session_state.file_size_mb = file_size_bytes / (1024 * 1024)
+                
                 with open(pdf_filename, "rb") as pdf_file:
                     st.session_state.pdf_data = pdf_file.read()
                     st.session_state.pdf_ready = True
                     st.session_state.images_added = images_added
                     
         if st.session_state.pdf_ready and st.session_state.pdf_data is not None:
-            st.success(f"Success: {st.session_state.images_added} cards generated on {paper_size_name} paper with {corner_style.lower()} corners.")
+            size_text = f"{st.session_state.file_size_mb:.2f} MB" if st.session_state.file_size_mb else ""
+            st.success(f"Success: {st.session_state.images_added} cards generated on {paper_size_name} paper with {corner_style.lower()} corners. ({size_text})")
+            
+            button_label = f"Download PDF ({size_text})" if size_text else "Download PDF"
             st.download_button(
-                label="Download PDF",
+                label=button_label,
                 data=st.session_state.pdf_data,
                 file_name="Proxyfy_Deck.pdf",
                 mime="application/pdf",
