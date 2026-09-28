@@ -704,15 +704,15 @@ with st.sidebar:
     cut_mode = st.radio("Layout Mode", ["Normal Mode", "Single Cut Mode (No Spacing)"])
     actual_spacing = 0 if "Single" in cut_mode else (2 * mm)
     
-    corner_style = st.radio("Card Corners", ["Sharp (Square)", "Rounded"]) 
-   paper_size_name = st.selectbox("Paper Size", ["A4", "A3", "US (Legal)", "DM Poster (20x30 cm)", "DM Foto (15x20 cm)"])
+    corner_style = st.radio("Card Corners", ["Sharp (Square)", "Rounded"])  
+    paper_size_name = st.selectbox("Paper Size", ["A4", "A3", "US (Legal)", "DM Poster (20x30 cm)", "DM Foto (15x20 cm)"])
     
     paper_sizes = {
         "A4": A4, 
         "A3": A3, 
         "US (Legal)": legal,
         "DM Poster (20x30 cm)": (200 * mm, 300 * mm),
-        "DM Foto (15x20 cm)": (150 * mm, 200 * mm)  # <-- Das neue 15x20 cm Format (Platz für 2 Karten)
+        "DM Foto (15x20 cm)": (150 * mm, 200 * mm)
     }
     selected_paper = paper_sizes[paper_size_name]
 
