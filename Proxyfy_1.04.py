@@ -446,18 +446,28 @@ st.markdown("""
         border: 1px solid #FCEE0A !important;
         box-shadow: 0 0 4px #FCEE0A40 !important;
     }
+    
+    /* INPUT NUMBER CENTER FIX */
+    input[type="number"] {
+        text-align: center !important;
+    }
 
-    /* PUSH-TO-BOTTOM ALIGNMENT FIX FÜR ALLE BUTTONS IN SPALTEN */
-    div[data-testid="column"] > div {
+    /* PERFECT BOTTOM ALIGNMENT FIX FÜR BUTTONS IN COLUMNS */
+    div[data-testid="column"] {
         display: flex;
         flex-direction: column;
-        height: 100%;
     }
-    div[data-testid="column"] div[data-testid="stButton"] {
+    div[data-testid="column"] > div {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+    }
+    div[data-testid="column"] > div > div:last-child {
         margin-top: auto !important;
+        padding-top: 10px;
     }
 
-    /* BILDER-FORMAT FIX (Zwingt alle Bilder ins exakte MTG-Format) */
+    /* BILDER-FORMAT FIX */
     div[data-testid="stImage"] img {
         width: 100% !important;
         height: auto !important;
@@ -564,6 +574,11 @@ with st.sidebar:
     set_code = st.text_input("Specific Set Code (Optional, e.g. 'mh2')", value="")
     
     st.markdown("---")
+    st.header("Preview Settings")
+    # NEU: Slider für dynamische Grid-Größe / Skalierung
+    grid_size = st.slider("Preview Grid Columns", min_value=2, max_value=10, value=5)
+    
+    st.markdown("---")
     st.header("Print Settings")
     
     cut_mode = st.radio("Layout Mode", ["Normal Mode", "Single Cut Mode (No Spacing)"])
@@ -628,10 +643,10 @@ if st.session_state.preview_cards is not None:
                     
         variants = st.session_state.variants_data
         if variants:
-            # FIX: Auch hier laden wir die Karten in sauberen 5er-Chunks für perfektes Alignment
-            for i in range(0, len(variants), 5):
-                v_cols = st.columns(5)
-                for j in range(5):
+            # Dynamische Grid-Größe anwenden
+            for i in range(0, len(variants), grid_size):
+                v_cols = st.columns(grid_size)
+                for j in range(grid_size):
                     v_idx = i + j
                     if v_idx < len(variants):
                         v_card = variants[v_idx]
@@ -649,28 +664,27 @@ if st.session_state.preview_cards is not None:
                                 set_name = v_card.get('set', '').upper()
                                 c_num = v_card.get('collector_number', '')
                                 
-                                # NEUES DESIGN: Der Zähler ist jetzt direkt über dem Button in der Spalte
+                                # NEU: Standardwert ist 0, damit man gezielt zuweisen kann (wie in der Skizze gefordert)
                                 split_count = st.number_input(
                                     "Copies", 
-                                    min_value=1, 
+                                    min_value=0, 
                                     max_value=active_card['count'], 
-                                    value=active_card['count'],
+                                    value=0,
                                     label_visibility="collapsed",
                                     key=f"split_num_{v_idx}"
                                 )
                                 
                                 if st.button(f"Select {set_name} #{c_num}", key=f"sel_var_{v_idx}"):
-                                    if split_count < active_card['count']:
+                                    if split_count == 0:
+                                        st.warning("Please select at least 1 copy using the '+' button above.")
+                                    elif split_count < active_card['count']:
                                         leftover_card = copy.deepcopy(active_card)
                                         leftover_card['count'] = active_card['count'] - split_count
                                         
-                                        # Aktuelle Karte mit der neuen Menge und neuem Bild speichern
                                         st.session_state.preview_cards[edit_idx]['count'] = split_count
                                         st.session_state.preview_cards[edit_idx]['urls'] = v_img_urls
                                         
-                                        # Die restlichen Karten hinten dranhängen
                                         st.session_state.preview_cards.append(leftover_card)
-                                        # Fokus auf die restlichen Karten setzen, damit wir auf der Seite bleiben
                                         st.session_state.editing_idx = len(st.session_state.preview_cards) - 1
                                         st.session_state.pdf_ready = False 
                                         st.rerun()
@@ -692,10 +706,10 @@ if st.session_state.preview_cards is not None:
             for card, err in st.session_state.error_log.items():
                 st.write(f"- {card}: {err}")
         
-        # FIX: Das gleiche Chunk-System für die Vorschau-Seite
-        for i in range(0, len(st.session_state.preview_cards), 5):
-            cols = st.columns(5)
-            for j in range(5):
+        # Dynamische Grid-Größe für die Hauptvorschau
+        for i in range(0, len(st.session_state.preview_cards), grid_size):
+            cols = st.columns(grid_size)
+            for j in range(grid_size):
                 idx = i + j
                 if idx < len(st.session_state.preview_cards):
                     card = st.session_state.preview_cards[idx]
