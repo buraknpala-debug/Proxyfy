@@ -392,14 +392,11 @@ def sort_preview_cards(cards):
 
 st.set_page_config(page_title="Proxyfy by Nefpo", layout="wide")
 
-# V2.5: AUTO-SCROLL SESSION STATE INIT
 if 'scroll_to_top' not in st.session_state:
     st.session_state.scroll_to_top = False
 
-# HTML Anchor für den Scroll-Befehl
 st.markdown('<div id="top"></div>', unsafe_allow_html=True)
 
-# Löst den Scroll aus, wenn der State True ist
 if st.session_state.scroll_to_top:
     components.html(
         "<script>window.parent.document.getElementById('top').scrollIntoView({behavior: 'smooth'});</script>",
@@ -532,13 +529,13 @@ st.markdown("""
         box-shadow: 0 0 8px #FCEE0A !important;
     }
     
-    /* V2.5: FLOATING 'TP TO THE TOP' BUTTON */
+    /* V2.6: ANGEPASSTER FLOATING 'TP TO THE TOP' BUTTON */
     a.tp-to-top-btn {
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
         position: fixed !important;
-        bottom: 30px !important;
+        bottom: 80px !important;  /* Weiter oben, damit Streamlits 'Manage app' nicht im Weg ist */
         right: 30px !important;
         width: auto !important;
         background-color: #050505 !important;
@@ -876,7 +873,6 @@ if st.session_state.preview_cards is not None:
                                     if st.button("Change Art", key=f"change_art_{global_idx}"):
                                         st.session_state.editing_idx = global_idx
                                         st.session_state.variants_data = None
-                                        # V2.5: Triggert den Auto-Scroll für den nächsten Rerun
                                         st.session_state.scroll_to_top = True
                                         st.rerun()
         
@@ -910,5 +906,4 @@ if st.session_state.preview_cards is not None:
                 use_container_width=True
             )
 
-# V2.5: Der Floating TP-Button am absolut unteren Ende des Dokuments injiziert
-st.markdown('<a href="#top" target="_self" class="tp-to-top-btn">TOP ↑</a>', unsafe_allow_html=True)
+st.markdown('<a href="#top" target="_self" class="tp-to-top-btn">TP TO THE TOP</a>', unsafe_allow_html=True)
