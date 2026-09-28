@@ -315,11 +315,20 @@ def generate_deck_pdf(card_metadata, output_filename, paper_size_tuple, corner_s
     c = canvas.Canvas(output_filename, pagesize=paper_size_tuple)
     page_width, page_height = paper_size_tuple
     
-    x_start = MARGIN_X
-    y_start = page_height - MARGIN_Y - CARD_HEIGHT
+    # --- V2.2: SUPER CUT MODE LOGIK ---
+    # Wenn Spacing 0 ist, schieben wir alles komplett bündig in die linke, obere Ecke.
+    if spacing == 0:
+        current_margin_x = 0
+        current_margin_y = 0
+    else:
+        current_margin_x = MARGIN_X
+        current_margin_y = MARGIN_Y
     
-    max_cols = int((page_width - 2 * MARGIN_X + spacing) // (CARD_WIDTH + spacing))
-    max_rows = int((page_height - 2 * MARGIN_Y + spacing) // (CARD_HEIGHT + spacing))
+    x_start = current_margin_x
+    y_start = page_height - current_margin_y - CARD_HEIGHT
+    
+    max_cols = int((page_width - 2 * current_margin_x + spacing) // (CARD_WIDTH + spacing))
+    max_rows = int((page_height - 2 * current_margin_y + spacing) // (CARD_HEIGHT + spacing))
     
     col = 0
     row = 0
@@ -561,55 +570,45 @@ st.markdown("""
         display: none;
     }
 
-    /* V2.1: SATISFYING GEOMETRIC SNAP SPINNER */
-    /* Die Formen wechseln exakt zur Mitte der Drehung (z.B. bei 13.33%, 30% etc.) für den Snapping-Effekt */
-    @keyframes satisfyingSnap {
-        0%, 10% {
-            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,15 85,80 15,80" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>');
-            transform: rotate(0deg);
-            animation-timing-function: cubic-bezier(0.8, 0, 0.2, 1);
+    div[data-testid="column"]:has(.card-grid-marker):not(:has(div[data-testid="column"]:has(.card-grid-marker))) {
+        container-type: inline-size;
+        container-name: cardcol;
+    }
+    
+    div[data-testid="column"]:has(.card-grid-marker) div[data-testid="stButton"] button p {
+        font-size: 0px !important;
+        color: transparent !important;
+        margin: 0;
+        padding: 0;
+    }
+    
+    div[data-testid="column"]:has(.card-grid-marker) div[data-testid="stButton"] button p::after {
+        content: "CHANGE ART ⇄";
+        font-size: 13px !important;
+        color: #FCEE0A !important;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        visibility: visible;
+    }
+    
+    @container cardcol (max-width: 140px) {
+        div[data-testid="column"]:has(.card-grid-marker) div[data-testid="stButton"] button p::after {
+            content: "⇄";
+            font-size: 18px !important;
         }
-        13.33% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,15 85,80 15,80" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
-        13.34% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="22,22 78,22 78,78 22,78" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
-        16.66%, 26.66% {
-            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="22,22 78,22 78,78 22,78" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>');
-            transform: rotate(180deg);
-            animation-timing-function: cubic-bezier(0.8, 0, 0.2, 1);
-        }
-        30% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="22,22 78,22 78,78 22,78" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
-        30.01% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,14 85,38 72,82 28,82 15,38" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
-        33.33%, 43.33% {
-            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,14 85,38 72,82 28,82 15,38" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>');
-            transform: rotate(360deg);
-            animation-timing-function: cubic-bezier(0.8, 0, 0.2, 1);
-        }
-        46.66% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,14 85,38 72,82 28,82 15,38" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
-        46.67% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,12 83,31 83,69 50,88 17,69 17,31" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
-        50%, 60% {
-            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,12 83,31 83,69 50,88 17,69 17,31" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>');
-            transform: rotate(540deg);
-            animation-timing-function: cubic-bezier(0.8, 0, 0.2, 1);
-        }
-        63.33% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,12 83,31 83,69 50,88 17,69 17,31" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
-        63.34% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="36,14 64,14 86,36 86,64 64,86 36,86 14,64 14,36" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
-        66.66%, 76.66% {
-            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="36,14 64,14 86,36 86,64 64,86 36,86 14,64 14,36" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>');
-            transform: rotate(720deg);
-            animation-timing-function: cubic-bezier(0.8, 0, 0.2, 1);
-        }
-        80% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="36,14 64,14 86,36 86,64 64,86 36,86 14,64 14,36" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
-        80.01% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="35" fill="none" stroke="%23E0E0E0" stroke-width="8"/></svg>'); }
-        83.33%, 93.33% {
-            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="35" fill="none" stroke="%23E0E0E0" stroke-width="8"/></svg>');
-            transform: rotate(900deg);
-            animation-timing-function: cubic-bezier(0.8, 0, 0.2, 1);
-        }
-        96.66% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="35" fill="none" stroke="%23E0E0E0" stroke-width="8"/></svg>'); }
-        96.67% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,15 85,80 15,80" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
-        100% {
-            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,15 85,80 15,80" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>');
-            transform: rotate(1080deg);
-        }
+    }
+
+    @keyframes shapeJump {
+        0%, 23% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,15 85,85 15,85" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
+        24%, 48% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect x="18" y="18" width="64" height="64" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
+        49%, 73% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,12 88,40 73,85 27,85 12,40" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
+        74%, 100% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="35" fill="none" stroke="%23E0E0E0" stroke-width="8"/></svg>'); }
+    }
+
+    @keyframes customRotate {
+        0% { transform: rotate(0deg); animation-timing-function: linear; }
+        33% { transform: rotate(120deg); animation-timing-function: cubic-bezier(0.5, 0, 0.8, 1); }
+        100% { transform: rotate(360deg); }
     }
 
     div[data-testid="stSpinner"] > div:first-child {
@@ -625,13 +624,12 @@ st.markdown("""
     div[data-testid="stSpinner"]::before {
         content: "";
         display: inline-block;
-        width: 30px;
-        height: 30px;
+        width: 25px;
+        height: 25px;
         background-size: contain;
         background-repeat: no-repeat;
         background-position: center;
-        /* Gesamter Cycle dauert 6 Sekunden (1 Sekunde pro Form-Step) */
-        animation: satisfyingSnap 6s infinite;
+        animation: shapeJump 6s infinite, customRotate 1.5s infinite;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -695,7 +693,6 @@ if st.button("Load Cards & Show Preview", type="primary"):
         progress_bar = st.progress(0)
         status_text = st.empty()
         
-        # Der Spinner taucht hier direkt neben dem Ladebalken auf!
         with st.spinner("Fetching card data from Scryfall..."):
             cards, errors = get_card_data_smart_cascade(deck_dict, progress_bar, status_text, lang_code, art_style, set_code.strip(), fancy_mode)
             sort_preview_cards(cards)
@@ -722,7 +719,6 @@ if st.session_state.preview_cards is not None:
             st.rerun()
             
         if st.session_state.variants_data is None:
-            # Auch hier läuft der neue, befriedigende Spinner
             with st.spinner("Loading all available artworks..."):
                 safe_name = active_card['name'].replace('"', '')
                 q = f'!"{safe_name}" include:extras'
@@ -853,7 +849,6 @@ if st.session_state.preview_cards is not None:
         if st.button("Generate Print-Ready PDF", type="primary", use_container_width=True):
             pdf_filename = "Proxyfy_Deck.pdf"
             
-            # Und hier begleitet der neue Spinner den PDF-Export!
             with st.spinner("Processing Card Images and building PDF..."):
                 images_added = generate_deck_pdf(st.session_state.preview_cards, pdf_filename, selected_paper, corner_style.split()[0], actual_spacing)
             
