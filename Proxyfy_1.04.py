@@ -705,7 +705,7 @@ with st.sidebar:
     actual_spacing = 0 if "Single" in cut_mode else (2 * mm)
     
     corner_style = st.radio("Card Corners", ["Sharp (Square)", "Rounded"]) 
-    paper_size_name = st.selectbox("Paper Size", ["A4", "A3", "US (Legal)", "DM Poster (20x30 cm)"])
+    paper_size_name = st.selectbox("Paper Size", ["A4", "A3", "US (Legal)", "DM Poster (20x30 cm)","DM Foto (15x20 cm)"])
     
     paper_sizes = {
         "A4": A4, 
