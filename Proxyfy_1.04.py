@@ -553,7 +553,6 @@ st.markdown("""
         text-shadow: 0 0 8px rgba(252, 238, 10, 0.4);
     }
     
-    /* V1.7 FIX: Isolierter Rahmen - Verhindert das Übergreifen auf andere Container */
     div[data-testid="stVerticalBlock"]:has(.card-group-marker):not(:has(div[data-testid="stVerticalBlock"]:has(.card-group-marker))) {
         border: 1px solid rgba(252, 238, 10, 0.15) !important;
         box-shadow: 0 0 10px rgba(252, 238, 10, 0.05) !important;
@@ -567,7 +566,6 @@ st.markdown("""
         display: none;
     }
 
-    /* V1.7 FIX: Zielgerichtete Responsive Buttons (Nur innerhalb der Grid-Spalten!) */
     div[data-testid="column"]:has(.card-grid-marker):not(:has(div[data-testid="column"]:has(.card-grid-marker))) {
         container-type: inline-size;
         container-name: cardcol;
@@ -580,7 +578,6 @@ st.markdown("""
         padding: 0;
     }
     
-    /* Reines Text-Symbol (Unicode) erbt die perfekte gelbe Farbe */
     div[data-testid="column"]:has(.card-grid-marker) div[data-testid="stButton"] button p::after {
         content: "CHANGE ART ⇄";
         font-size: 13px !important;
@@ -596,6 +593,44 @@ st.markdown("""
             font-size: 18px !important;
         }
     }
+
+    /* V1.8: CUSTOM GEOMETRIC MORPHING SPINNER */
+    
+    /* Animationslogik: Dreieck -> Viereck -> Fünfeck -> Kreis -> Dreieck */
+    @keyframes morphingSpinner {
+        0%, 100% { clip-path: polygon(50% 0%, 75% 50%, 100% 100%, 80% 100%, 50% 100%, 20% 100%, 0% 100%, 25% 50%, 50% 0%, 50% 0%); }
+        25%      { clip-path: polygon(50% 0%, 100% 0%, 100% 50%, 100% 100%, 50% 100%, 0% 100%, 0% 50%, 0% 0%, 25% 0%, 50% 0%); }
+        50%      { clip-path: polygon(50% 0%, 75% 19%, 100% 38%, 90% 69%, 81% 100%, 50% 100%, 19% 100%, 10% 69%, 0% 38%, 25% 19%); }
+        75%      { clip-path: polygon(50% 0%, 81% 9%, 100% 35%, 100% 70%, 81% 95%, 50% 100%, 19% 95%, 0% 70%, 0% 35%, 19% 9%); }
+    }
+    
+    @keyframes rotateSpinner {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Verstecke den standard Streamlit-Ring (mit dem weißen Strich) */
+    div[data-testid="stSpinner"] > div:first-child {
+        display: none !important;
+    }
+    
+    /* Spinner Layout anpassen */
+    div[data-testid="stSpinner"] {
+        display: flex;
+        align-items: center;
+        gap: 15px; /* Abstand zwischen neuer Form und dem Text */
+    }
+    
+    /* Füge die neue animierte Geometrie-Form ein */
+    div[data-testid="stSpinner"]::before {
+        content: "";
+        display: block;
+        min-width: 25px;
+        height: 25px;
+        background-color: #E0E0E0; /* Exakte Textfarbe der Website (#E0E0E0) */
+        animation: morphingSpinner 4s ease-in-out infinite, rotateSpinner 3s linear infinite;
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
