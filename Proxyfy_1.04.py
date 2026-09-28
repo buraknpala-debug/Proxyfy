@@ -451,7 +451,6 @@ st.markdown("""
         text-align: center !important;
     }
 
-    /* ERZWINGT GLEICHE HÖHE FÜR SPALTEN */
     div[data-testid="stHorizontalBlock"] {
         align-items: stretch !important;
     }
@@ -709,12 +708,11 @@ if st.session_state.preview_cards is not None:
                 if idx < len(st.session_state.preview_cards):
                     card = st.session_state.preview_cards[idx]
                     with cols[j]:
-                        # BILD OHNE STANDARD-CAPTION
                         st.image(card['urls'][0], use_container_width=True)
                         
-                        # CUSTOM HTML CAPTION MIT FESTER MINDESTHÖHE
+                        # ELEGANTES CSS LINE-CLAMP FÜR DIE ÜBERSCHRIFT (max 2 Zeilen + ...)
                         st.markdown(f"""
-                            <div style="text-align: center; min-height: 3em; display: flex; align-items: center; justify-content: center; font-size: 14px; margin-bottom: 10px; color: #E0E0E0;">
+                            <div style="text-align: center; height: 2.8em; line-height: 1.4em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; font-size: 14px; margin-bottom: 10px; color: #E0E0E0;" title="{card['count']}x {card['name']}">
                                 {card['count']}x {card['name']}
                             </div>
                         """, unsafe_allow_html=True)
