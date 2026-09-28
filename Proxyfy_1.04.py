@@ -311,10 +311,6 @@ def download_image(url, corner_style):
 
 def generate_deck_pdf(card_metadata, output_filename, paper_size_tuple, corner_style, spacing):
     progress_bar = st.progress(0)
-    status_text = st.empty()
-    
-    status_text.text("Processing card images and building PDF...")
-    progress_bar.progress(0.0)
     
     c = canvas.Canvas(output_filename, pagesize=paper_size_tuple)
     page_width, page_height = paper_size_tuple
@@ -366,7 +362,6 @@ def generate_deck_pdf(card_metadata, output_filename, paper_size_tuple, corner_s
 
     if images_added > 0:
         c.save()
-        status_text.text("PDF generated successfully.")
         
     return images_added
 
@@ -447,6 +442,10 @@ st.markdown("""
         box-shadow: 0 0 4px #FCEE0A40 !important;
     }
     
+    input[type="number"] {
+        text-align: center !important;
+    }
+
     div[data-testid="stHorizontalBlock"] {
         align-items: stretch !important;
     }
@@ -558,45 +557,23 @@ st.markdown("""
         border-radius: 5px !important;
     }
     
-    .card-group-marker, .card-grid-marker {
+    .card-group-marker {
         display: none;
     }
 
-    div[data-testid="column"]:has(.card-grid-marker):not(:has(div[data-testid="column"]:has(.card-grid-marker))) {
-        container-type: inline-size;
-        container-name: cardcol;
-    }
-    
-    div[data-testid="column"]:has(.card-grid-marker) div[data-testid="stButton"] button p {
-        font-size: 0px !important;
-        color: transparent !important;
-        margin: 0;
-        padding: 0;
-    }
-    
-    div[data-testid="column"]:has(.card-grid-marker) div[data-testid="stButton"] button p::after {
-        content: "CHANGE ART ⇄";
-        font-size: 13px !important;
-        color: #FCEE0A !important;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        visibility: visible;
-    }
-    
-    @container cardcol (max-width: 140px) {
-        div[data-testid="column"]:has(.card-grid-marker) div[data-testid="stButton"] button p::after {
-            content: "⇄";
-            font-size: 18px !important;
-        }
+    /* V2.0: HOLLOW SHAPE-JUMPING SPINNER (Geometrisch perfekt, exakt gleiche Dicke) */
+    @keyframes shapeJump {
+        0%, 23% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,15 85,85 15,85" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
+        24%, 48% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect x="18" y="18" width="64" height="64" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
+        49%, 73% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,12 88,40 73,85 27,85 12,40" fill="none" stroke="%23E0E0E0" stroke-width="8" stroke-linejoin="round"/></svg>'); }
+        74%, 100% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="35" fill="none" stroke="%23E0E0E0" stroke-width="8"/></svg>'); }
     }
 
-    /* V1.9: HOLLOW SHAPE-JUMPING SPINNER (Kein Morphing mehr) */
-    @keyframes shapeJump {
-        0%, 19.9%  { content: "△"; }
-        20%, 39.9% { content: "□"; }
-        40%, 59.9% { content: "⬠"; }
-        60%, 79.9% { content: "○"; }
-        80%, 100%  { content: "△"; }
+    /* Die Drehung: 0-33% normales Tempo, danach beschleunigt in die Kurve */
+    @keyframes customRotate {
+        0% { transform: rotate(0deg); animation-timing-function: linear; }
+        33% { transform: rotate(120deg); animation-timing-function: cubic-bezier(0.5, 0, 0.8, 1); }
+        100% { transform: rotate(360deg); }
     }
 
     div[data-testid="stSpinner"] > div:first-child {
@@ -610,16 +587,15 @@ st.markdown("""
     }
     
     div[data-testid="stSpinner"]::before {
-        content: "△";
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
+        content: "";
+        display: inline-block;
         width: 25px;
         height: 25px;
-        font-size: 24px;
-        line-height: 1;
-        color: #E0E0E0; /* Exakte Textfarbe der Website (#E0E0E0) */
-        animation: shapeJump 2s infinite;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        /* Die Animation überschneidet sich perfekt: Nach 1.5s (25% von 6s) ist die Drehung fertig und springt exakt davor um */
+        animation: shapeJump 6s infinite, customRotate 1.5s infinite;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -740,7 +716,6 @@ if st.session_state.preview_cards is not None:
                                 set_name = v_card.get('set', '').upper()
                                 c_num = v_card.get('collector_number', '')
                                 
-                                # V1.9 FIX: Wenn es nur 1 Kopie gibt, verstecke das Zahlenfeld komplett!
                                 if active_card['count'] > 1:
                                     split_count = st.number_input(
                                         "Copies", 
@@ -821,7 +796,6 @@ if st.session_state.preview_cards is not None:
                             if i + j < len(group_items):
                                 global_idx, card = group_items[i + j]
                                 with cols[j]:
-                                    st.markdown('<span class="card-grid-marker"></span>', unsafe_allow_html=True)
                                     st.image(card['urls'][0], use_container_width=True)
                                     
                                     st.markdown(f"""
@@ -830,7 +804,8 @@ if st.session_state.preview_cards is not None:
                                         </div>
                                     """, unsafe_allow_html=True)
                                     
-                                    if st.button("🔀", key=f"change_art_{global_idx}"):
+                                    # Der Button heißt nun wieder sauber "Change Art"
+                                    if st.button("Change Art", key=f"change_art_{global_idx}"):
                                         st.session_state.editing_idx = global_idx
                                         st.session_state.variants_data = None
                                         st.rerun()
@@ -839,7 +814,10 @@ if st.session_state.preview_cards is not None:
         
         if st.button("Generate Print-Ready PDF", type="primary", use_container_width=True):
             pdf_filename = "Proxyfy_Deck.pdf"
-            images_added = generate_deck_pdf(st.session_state.preview_cards, pdf_filename, selected_paper, corner_style.split()[0], actual_spacing)
+            
+            # V2.0: Der neue Spinner umschließt nun den kompletten PDF-Bau!
+            with st.spinner("Processing Card Images and building PDF..."):
+                images_added = generate_deck_pdf(st.session_state.preview_cards, pdf_filename, selected_paper, corner_style.split()[0], actual_spacing)
             
             if images_added > 0 and os.path.exists(pdf_filename):
                 with open(pdf_filename, "rb") as pdf_file:
