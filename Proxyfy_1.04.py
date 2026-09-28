@@ -447,27 +447,21 @@ st.markdown("""
         box-shadow: 0 0 4px #FCEE0A40 !important;
     }
     
-    /* INPUT NUMBER CENTER FIX */
     input[type="number"] {
         text-align: center !important;
     }
 
-    /* PERFECT BOTTOM ALIGNMENT FIX FÜR BUTTONS IN COLUMNS */
-    div[data-testid="column"] {
-        display: flex;
-        flex-direction: column;
+    /* PERFECT BOTTOM ALIGNMENT FIX V1.2 */
+    [data-testid="column"] {
+        display: flex !important;
+        flex-direction: column !important;
+        height: 100% !important;
     }
-    div[data-testid="column"] > div {
-        flex-grow: 1;
-        display: flex;
-        flex-direction: column;
-    }
-    div[data-testid="column"] > div > div:last-child {
+    [data-testid="column"] > div.element-container:last-of-type,
+    [data-testid="column"] > div:last-child {
         margin-top: auto !important;
-        padding-top: 10px;
     }
 
-    /* BILDER-FORMAT FIX */
     div[data-testid="stImage"] img {
         width: 100% !important;
         height: auto !important;
@@ -575,7 +569,6 @@ with st.sidebar:
     
     st.markdown("---")
     st.header("Preview Settings")
-    # NEU: Slider für dynamische Grid-Größe / Skalierung
     grid_size = st.slider("Preview Grid Columns", min_value=2, max_value=10, value=5)
     
     st.markdown("---")
@@ -643,7 +636,6 @@ if st.session_state.preview_cards is not None:
                     
         variants = st.session_state.variants_data
         if variants:
-            # Dynamische Grid-Größe anwenden
             for i in range(0, len(variants), grid_size):
                 v_cols = st.columns(grid_size)
                 for j in range(grid_size):
@@ -664,7 +656,6 @@ if st.session_state.preview_cards is not None:
                                 set_name = v_card.get('set', '').upper()
                                 c_num = v_card.get('collector_number', '')
                                 
-                                # NEU: Standardwert ist 0, damit man gezielt zuweisen kann (wie in der Skizze gefordert)
                                 split_count = st.number_input(
                                     "Copies", 
                                     min_value=0, 
@@ -706,7 +697,6 @@ if st.session_state.preview_cards is not None:
             for card, err in st.session_state.error_log.items():
                 st.write(f"- {card}: {err}")
         
-        # Dynamische Grid-Größe für die Hauptvorschau
         for i in range(0, len(st.session_state.preview_cards), grid_size):
             cols = st.columns(grid_size)
             for j in range(grid_size):
