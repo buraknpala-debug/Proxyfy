@@ -392,7 +392,20 @@ def sort_preview_cards(cards):
 
 st.set_page_config(page_title="Proxyfy by Nefpo", layout="wide")
 
+# V2.5: AUTO-SCROLL SESSION STATE INIT
+if 'scroll_to_top' not in st.session_state:
+    st.session_state.scroll_to_top = False
+
+# HTML Anchor für den Scroll-Befehl
 st.markdown('<div id="top"></div>', unsafe_allow_html=True)
+
+# Löst den Scroll aus, wenn der State True ist
+if st.session_state.scroll_to_top:
+    components.html(
+        "<script>window.parent.document.getElementById('top').scrollIntoView({behavior: 'smooth'});</script>",
+        height=0
+    )
+    st.session_state.scroll_to_top = False
 
 st.markdown("""
 <style>
@@ -519,17 +532,20 @@ st.markdown("""
         box-shadow: 0 0 8px #FCEE0A !important;
     }
     
+    /* V2.5: FLOATING 'TP TO THE TOP' BUTTON */
     a.tp-to-top-btn {
-        display: block !important;
-        position: sticky !important;
-        bottom: 20px !important;
-        margin-top: 40px !important;
-        width: 100% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        position: fixed !important;
+        bottom: 30px !important;
+        right: 30px !important;
+        width: auto !important;
         background-color: #050505 !important;
         color: #FCEE0A !important;
         border: 2px solid #FCEE0A !important;
-        padding: 10px 0px !important;
-        font-size: 16px !important;
+        padding: 10px 20px !important;
+        font-size: 14px !important;
         font-weight: bold !important;
         text-align: center !important;
         text-decoration: none !important;
@@ -537,11 +553,12 @@ st.markdown("""
         letter-spacing: 2px !important;
         z-index: 999999 !important;
         transition: all 0.2s ease-in-out !important;
+        box-shadow: 0 0 15px rgba(0,0,0,0.8) !important;
     }
     a.tp-to-top-btn:hover {
         background-color: #FCEE0A !important;
         color: #000000 !important;
-        box-shadow: 0 0 15px #FCEE0A80 !important;
+        box-shadow: 0 0 15px #FCEE0A80, 0 0 8px #FCEE0A !important;
     }
 
     .group-title {
@@ -596,15 +613,7 @@ st.markdown("""
         }
     }
 
-    /* V2.4: MATHEMATICALLY PERFECT GEOMETRY SPINNER */
-    
-    /* 
-      1 Cycle = 9 Sekunden (6 Formen * 1.5s Intervalle).
-      Morphing passiert exakt in der Mitte des Rotations-Spins (bei 10.55%, 27.22% etc.) 
-      Alle Formen haben ihr Zentrum mathematisch exakt bei 50,50 um "Eiern" zu verhindern.
-    */
-    
-     @keyframes shapeJump {
+    @keyframes shapeJump {
         0%, 10.55% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,10 85,70 15,70" fill="none" stroke="%23FCEE0A" stroke-width="8" stroke-linejoin="round"/></svg>'); }
         10.56%, 27.21% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect x="22" y="22" width="56" height="56" fill="none" stroke="%23FCEE0A" stroke-width="8" stroke-linejoin="round"/></svg>'); }
         27.22%, 43.88% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,10 88,38 74,82 26,82 12,38" fill="none" stroke="%23FCEE0A" stroke-width="8" stroke-linejoin="round"/></svg>'); }
@@ -614,13 +623,11 @@ st.markdown("""
         93.89%, 100% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,10 85,70 15,70" fill="none" stroke="%23FCEE0A" stroke-width="8" stroke-linejoin="round"/></svg>'); }
     }
 
-    /* SMOOTH SNAP ROTATION: Stillstand -> Sanfte Beschleunigung -> Harter Spin -> Sanftes Bremsen */
     @keyframes customRotate {
         0%, 25% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.75, 0, 0.25, 1); }
         100% { transform: rotate(360deg); }
     }
     
-    /* Loading Dots Animation läuft exakt auf einem 6 Sekunden (4x 1.5s) Loop, synchron zur Rotation */
     @keyframes loadingDots {
         0%, 24.9% { content: "LOADING"; }
         25%, 49.9% { content: "LOADING."; }
@@ -646,7 +653,6 @@ st.markdown("""
         background-size: contain;
         background-repeat: no-repeat;
         background-position: center;
-        /* Die Rotation triggert alle 1.5s, die Geometrie läuft 9s synchron drüber */
         animation: shapeJump 9s infinite, customRotate 1.5s infinite;
     }
     
@@ -705,8 +711,6 @@ with st.sidebar:
     
     paper_sizes = {"A4": A4, "A3": A3, "US (Legal)": legal}
     selected_paper = paper_sizes[paper_size_name]
-    
-    st.markdown('<a href="#top" target="_self" class="tp-to-top-btn">TP to the Top</a>', unsafe_allow_html=True)
 
 decklist_input = st.text_area("Paste your decklist here:", height=200)
 
@@ -872,6 +876,8 @@ if st.session_state.preview_cards is not None:
                                     if st.button("Change Art", key=f"change_art_{global_idx}"):
                                         st.session_state.editing_idx = global_idx
                                         st.session_state.variants_data = None
+                                        # V2.5: Triggert den Auto-Scroll für den nächsten Rerun
+                                        st.session_state.scroll_to_top = True
                                         st.rerun()
         
         st.markdown("---")
@@ -903,3 +909,6 @@ if st.session_state.preview_cards is not None:
                 mime="application/pdf",
                 use_container_width=True
             )
+
+# V2.5: Der Floating TP-Button am absolut unteren Ende des Dokuments injiziert
+st.markdown('<a href="#top" target="_self" class="tp-to-top-btn">TOP ↑</a>', unsafe_allow_html=True)
