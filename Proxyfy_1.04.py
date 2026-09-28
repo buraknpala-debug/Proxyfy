@@ -705,9 +705,14 @@ with st.sidebar:
     actual_spacing = 0 if "Single" in cut_mode else (2 * mm)
     
     corner_style = st.radio("Card Corners", ["Sharp (Square)", "Rounded"]) 
-    paper_size_name = st.selectbox("Paper Size", ["A4", "A3", "US (Legal)"])
+    paper_size_name = st.selectbox("Paper Size", ["A4", "A3", "US (Legal)", "DM Poster (20x30 cm)"])
     
-    paper_sizes = {"A4": A4, "A3": A3, "US (Legal)": legal}
+    paper_sizes = {
+        "A4": A4, 
+        "A3": A3, 
+        "US (Legal)": legal,
+        "DM Poster (20x30 cm)": (200 * mm, 300 * mm)
+    }
     selected_paper = paper_sizes[paper_size_name]
 
 decklist_input = st.text_area("Paste your decklist here:", height=200)
