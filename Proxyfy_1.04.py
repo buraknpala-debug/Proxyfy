@@ -451,12 +451,17 @@ st.markdown("""
         text-align: center !important;
     }
 
-    /* PERFECT BOTTOM ALIGNMENT FIX V1.2 */
+    /* ERZWINGT GLEICHE HÖHE FÜR SPALTEN */
+    div[data-testid="stHorizontalBlock"] {
+        align-items: stretch !important;
+    }
+    
     [data-testid="column"] {
         display: flex !important;
         flex-direction: column !important;
         height: 100% !important;
     }
+    
     [data-testid="column"] > div.element-container:last-of-type,
     [data-testid="column"] > div:last-child {
         margin-top: auto !important;
@@ -704,7 +709,16 @@ if st.session_state.preview_cards is not None:
                 if idx < len(st.session_state.preview_cards):
                     card = st.session_state.preview_cards[idx]
                     with cols[j]:
-                        st.image(card['urls'][0], caption=f"{card['count']}x {card['name']}", use_container_width=True)
+                        # BILD OHNE STANDARD-CAPTION
+                        st.image(card['urls'][0], use_container_width=True)
+                        
+                        # CUSTOM HTML CAPTION MIT FESTER MINDESTHÖHE
+                        st.markdown(f"""
+                            <div style="text-align: center; min-height: 3em; display: flex; align-items: center; justify-content: center; font-size: 14px; margin-bottom: 10px; color: #E0E0E0;">
+                                {card['count']}x {card['name']}
+                            </div>
+                        """, unsafe_allow_html=True)
+                        
                         if st.button("Change Art", key=f"change_art_{idx}"):
                             st.session_state.editing_idx = idx
                             st.session_state.variants_data = None
