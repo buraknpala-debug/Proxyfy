@@ -524,9 +524,12 @@ st.markdown("""
         box-shadow: 0 0 5px #FCEE0A40 !important;
     }
     
-    .stProgress > div > div > div > div {
+   
+    .stProgress > div > div > div > div,
+    [data-testid="stProgress"] div[role="progressbar"] > div > div {
         background-color: #FCEE0A !important;
         box-shadow: 0 0 8px #FCEE0A !important;
+    }
     }
     
     /* V2.6: ANGEPASSTER FLOATING 'TP TO THE TOP' BUTTON */
