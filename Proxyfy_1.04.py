@@ -604,14 +604,14 @@ st.markdown("""
       Alle Formen haben ihr Zentrum mathematisch exakt bei 50,50 um "Eiern" zu verhindern.
     */
     
-    @keyframes shapeJump {
-        0%, 10.55% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,10 85,70 15,70" fill="none" stroke="%FCEE0A" stroke-width="8" stroke-linejoin="round"/></svg>'); }
-        10.56%, 27.21% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect x="22" y="22" width="56" height="56" fill="none" stroke="%FCEE0A" stroke-width="8" stroke-linejoin="round"/></svg>'); }
-        27.22%, 43.88% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,10 88,38 74,82 26,82 12,38" fill="none" stroke="%FCEE0A" stroke-width="8" stroke-linejoin="round"/></svg>'); }
-        43.89%, 60.55% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,10 85,30 85,70 50,90 15,70 15,30" fill="none" stroke="%FCEE0A" stroke-width="8" stroke-linejoin="round"/></svg>'); }
-        60.56%, 77.21% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="35,10 65,10 90,35 90,65 65,90 35,90 10,65 10,35" fill="none" stroke="%FCEE0A" stroke-width="8" stroke-linejoin="round"/></svg>'); }
-        77.22%, 93.88% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="36" fill="none" stroke="%FCEE0A" stroke-width="8"/></svg>'); }
-        93.89%, 100% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,10 85,70 15,70" fill="none" stroke="%FCEE0A" stroke-width="8" stroke-linejoin="round"/></svg>'); }
+     @keyframes shapeJump {
+        0%, 10.55% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,10 85,70 15,70" fill="none" stroke="%23FCEE0A" stroke-width="8" stroke-linejoin="round"/></svg>'); }
+        10.56%, 27.21% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect x="22" y="22" width="56" height="56" fill="none" stroke="%23FCEE0A" stroke-width="8" stroke-linejoin="round"/></svg>'); }
+        27.22%, 43.88% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,10 88,38 74,82 26,82 12,38" fill="none" stroke="%23FCEE0A" stroke-width="8" stroke-linejoin="round"/></svg>'); }
+        43.89%, 60.55% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,10 85,30 85,70 50,90 15,70 15,30" fill="none" stroke="%23FCEE0A" stroke-width="8" stroke-linejoin="round"/></svg>'); }
+        60.56%, 77.21% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="35,10 65,10 90,35 90,65 65,90 35,90 10,65 10,35" fill="none" stroke="%23FCEE0A" stroke-width="8" stroke-linejoin="round"/></svg>'); }
+        77.22%, 93.88% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="36" fill="none" stroke="%23FCEE0A" stroke-width="8"/></svg>'); }
+        93.89%, 100% { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,10 85,70 15,70" fill="none" stroke="%23FCEE0A" stroke-width="8" stroke-linejoin="round"/></svg>'); }
     }
 
     /* SMOOTH SNAP ROTATION: Stillstand -> Sanfte Beschleunigung -> Harter Spin -> Sanftes Bremsen */
