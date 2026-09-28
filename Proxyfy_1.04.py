@@ -466,23 +466,12 @@ st.markdown("""
         display: block;
         border: 1px solid #222222;
         transition: all 0.2s;
+        margin-bottom: 5px;
     }
     div[data-testid="stImage"] img:hover {
         border: 1px solid #FCEE0A;
         box-shadow: 0 0 6px #FCEE0A40;
         transform: scale(1.01);
-    }
-    
-    /* STICKY ASSIGNMENT BAR FIX (Damit die Leiste beim Scrollen oben andockt) */
-    div[data-testid="stHorizontalBlock"]:has(div[data-testid="stNumberInput"]) {
-        position: sticky !important;
-        top: 55px !important;
-        z-index: 9999 !important;
-        background-color: #050505 !important;
-        padding: 15px !important;
-        border: 1px solid #FCEE0A !important;
-        box-shadow: 0px 5px 15px rgba(0,0,0,0.8) !important;
-        margin-bottom: 20px !important;
     }
 
     div[data-testid="stButton"] > button[kind="primary"] {
@@ -619,19 +608,13 @@ if st.session_state.preview_cards is not None:
         edit_idx = st.session_state.editing_idx
         active_card = st.session_state.preview_cards[edit_idx]
         
-        st.subheader(f"Editing Artwork: {active_card['name']} ({active_card['count']} copies available)")
+        st.subheader(f"Editing Artwork: {active_card['name']} ({active_card['count']} copies left to assign)")
         
-        col1, col2 = st.columns([1, 4])
-        with col1:
-            split_count = st.number_input("Copies to apply this art to:", min_value=1, max_value=active_card['count'], value=active_card['count'])
-        with col2:
-            st.write("")
-            st.write("")
-            if st.button("Cancel & Return to Deck", key="cancel_edit"):
-                st.session_state.editing_idx = None
-                st.session_state.variants_data = None
-                sort_preview_cards(st.session_state.preview_cards)
-                st.rerun()
+        if st.button("Finish & Return to Deck", key="cancel_edit"):
+            st.session_state.editing_idx = None
+            st.session_state.variants_data = None
+            sort_preview_cards(st.session_state.preview_cards)
+            st.rerun()
             
         if st.session_state.variants_data is None:
             with st.spinner("Loading all available artworks..."):
@@ -645,41 +628,59 @@ if st.session_state.preview_cards is not None:
                     
         variants = st.session_state.variants_data
         if variants:
-            v_cols = st.columns(5)
-            for v_idx, v_card in enumerate(variants):
-                with v_cols[v_idx % 5]:
-                    v_img_urls = []
-                    if 'image_uris' in v_card:
-                        v_img_urls.append(v_card['image_uris'].get('png', v_card['image_uris'].get('large')))
-                    elif 'card_faces' in v_card:
-                        for face in v_card['card_faces']:
-                            f_url = face.get('image_uris', {}).get('png', face.get('image_uris', {}).get('large'))
-                            if f_url: v_img_urls.append(f_url)
-                            
-                    if v_img_urls:
-                        st.image(v_img_urls[0], use_container_width=True)
-                        set_name = v_card.get('set', '').upper()
-                        c_num = v_card.get('collector_number', '')
-                        
-                        if st.button(f"Select {set_name} #{c_num}", key=f"sel_var_{v_idx}"):
-                            if split_count < active_card['count']:
-                                leftover_card = copy.deepcopy(active_card)
-                                leftover_card['count'] = active_card['count'] - split_count
+            # FIX: Auch hier laden wir die Karten in sauberen 5er-Chunks für perfektes Alignment
+            for i in range(0, len(variants), 5):
+                v_cols = st.columns(5)
+                for j in range(5):
+                    v_idx = i + j
+                    if v_idx < len(variants):
+                        v_card = variants[v_idx]
+                        with v_cols[j]:
+                            v_img_urls = []
+                            if 'image_uris' in v_card:
+                                v_img_urls.append(v_card['image_uris'].get('png', v_card['image_uris'].get('large')))
+                            elif 'card_faces' in v_card:
+                                for face in v_card['card_faces']:
+                                    f_url = face.get('image_uris', {}).get('png', face.get('image_uris', {}).get('large'))
+                                    if f_url: v_img_urls.append(f_url)
+                                    
+                            if v_img_urls:
+                                st.image(v_img_urls[0], use_container_width=True)
+                                set_name = v_card.get('set', '').upper()
+                                c_num = v_card.get('collector_number', '')
                                 
-                                st.session_state.preview_cards[edit_idx]['count'] = split_count
-                                st.session_state.preview_cards[edit_idx]['urls'] = v_img_urls
+                                # NEUES DESIGN: Der Zähler ist jetzt direkt über dem Button in der Spalte
+                                split_count = st.number_input(
+                                    "Copies", 
+                                    min_value=1, 
+                                    max_value=active_card['count'], 
+                                    value=active_card['count'],
+                                    label_visibility="collapsed",
+                                    key=f"split_num_{v_idx}"
+                                )
                                 
-                                st.session_state.preview_cards.append(leftover_card)
-                                st.session_state.editing_idx = len(st.session_state.preview_cards) - 1
-                                st.session_state.pdf_ready = False 
-                                st.rerun()
-                            else:
-                                st.session_state.preview_cards[edit_idx]['urls'] = v_img_urls
-                                st.session_state.editing_idx = None
-                                st.session_state.variants_data = None
-                                st.session_state.pdf_ready = False 
-                                sort_preview_cards(st.session_state.preview_cards)
-                                st.rerun()
+                                if st.button(f"Select {set_name} #{c_num}", key=f"sel_var_{v_idx}"):
+                                    if split_count < active_card['count']:
+                                        leftover_card = copy.deepcopy(active_card)
+                                        leftover_card['count'] = active_card['count'] - split_count
+                                        
+                                        # Aktuelle Karte mit der neuen Menge und neuem Bild speichern
+                                        st.session_state.preview_cards[edit_idx]['count'] = split_count
+                                        st.session_state.preview_cards[edit_idx]['urls'] = v_img_urls
+                                        
+                                        # Die restlichen Karten hinten dranhängen
+                                        st.session_state.preview_cards.append(leftover_card)
+                                        # Fokus auf die restlichen Karten setzen, damit wir auf der Seite bleiben
+                                        st.session_state.editing_idx = len(st.session_state.preview_cards) - 1
+                                        st.session_state.pdf_ready = False 
+                                        st.rerun()
+                                    else:
+                                        st.session_state.preview_cards[edit_idx]['urls'] = v_img_urls
+                                        st.session_state.editing_idx = None
+                                        st.session_state.variants_data = None
+                                        st.session_state.pdf_ready = False 
+                                        sort_preview_cards(st.session_state.preview_cards)
+                                        st.rerun()
         else:
             st.warning("No other artworks found for this card.")
             
@@ -691,14 +692,19 @@ if st.session_state.preview_cards is not None:
             for card, err in st.session_state.error_log.items():
                 st.write(f"- {card}: {err}")
         
-        cols = st.columns(5)
-        for idx, card in enumerate(st.session_state.preview_cards):
-            with cols[idx % 5]:
-                st.image(card['urls'][0], caption=f"{card['count']}x {card['name']}", use_container_width=True)
-                if st.button("Change Art", key=f"change_art_{idx}"):
-                    st.session_state.editing_idx = idx
-                    st.session_state.variants_data = None
-                    st.rerun()
+        # FIX: Das gleiche Chunk-System für die Vorschau-Seite
+        for i in range(0, len(st.session_state.preview_cards), 5):
+            cols = st.columns(5)
+            for j in range(5):
+                idx = i + j
+                if idx < len(st.session_state.preview_cards):
+                    card = st.session_state.preview_cards[idx]
+                    with cols[j]:
+                        st.image(card['urls'][0], caption=f"{card['count']}x {card['name']}", use_container_width=True)
+                        if st.button("Change Art", key=f"change_art_{idx}"):
+                            st.session_state.editing_idx = idx
+                            st.session_state.variants_data = None
+                            st.rerun()
         
         st.markdown("---")
         
