@@ -541,6 +541,31 @@ st.markdown("""
         color: #000000 !important;
         box-shadow: 0 0 15px #FCEE0A80 !important;
     }
+
+    /* NEUES DESIGN: GROUPING STYLES (Gelber Glow & Header) */
+    .group-title {
+        color: #FCEE0A;
+        font-size: 20px;
+        font-weight: bold;
+        margin-top: 40px;
+        margin-bottom: 5px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        text-shadow: 0 0 8px rgba(252, 238, 10, 0.4);
+    }
+    
+    /* Zielt exakt auf den Container ab, der eine Gruppe umgibt */
+    div[data-testid="stVerticalBlock"]:has(.card-group-marker) {
+        border: 1px solid rgba(252, 238, 10, 0.4) !important;
+        box-shadow: 0 0 15px rgba(252, 238, 10, 0.15) !important;
+        padding: 20px !important;
+        margin-bottom: 20px !important;
+        background-color: rgba(5, 5, 5, 0.5) !important;
+    }
+    
+    .card-group-marker {
+        display: none;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -701,26 +726,58 @@ if st.session_state.preview_cards is not None:
             for card, err in st.session_state.error_log.items():
                 st.write(f"- {card}: {err}")
         
-        for i in range(0, len(st.session_state.preview_cards), grid_size):
-            cols = st.columns(grid_size)
-            for j in range(grid_size):
-                idx = i + j
-                if idx < len(st.session_state.preview_cards):
-                    card = st.session_state.preview_cards[idx]
-                    with cols[j]:
-                        st.image(card['urls'][0], use_container_width=True)
-                        
-                        # ELEGANTES CSS LINE-CLAMP FÜR DIE ÜBERSCHRIFT (max 2 Zeilen + ...)
-                        st.markdown(f"""
-                            <div style="text-align: center; height: 2.8em; line-height: 1.4em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; font-size: 14px; margin-bottom: 10px; color: #E0E0E0;" title="{card['count']}x {card['name']}">
-                                {card['count']}x {card['name']}
-                            </div>
-                        """, unsafe_allow_html=True)
-                        
-                        if st.button("Change Art", key=f"change_art_{idx}"):
-                            st.session_state.editing_idx = idx
-                            st.session_state.variants_data = None
-                            st.rerun()
+        # --- NEU: KARTEN-KATEGORISIERUNG FÜR DIE VORSCHAU ---
+        grouped_cards = {}
+        for global_idx, card in enumerate(st.session_state.preview_cards):
+            main_type = card['type'].split('—')[0].strip().lower()
+            if 'basic land' in main_type: group = "Basic Lands"
+            elif 'land' in main_type: group = "Lands"
+            elif 'creature' in main_type: group = "Creatures"
+            elif 'planeswalker' in main_type: group = "Planeswalkers"
+            elif 'artifact' in main_type: group = "Artifacts"
+            elif 'enchantment' in main_type: group = "Enchantments"
+            elif 'instant' in main_type: group = "Instants"
+            elif 'sorcery' in main_type: group = "Sorceries"
+            else: group = "Others"
+            
+            if group not in grouped_cards:
+                grouped_cards[group] = []
+            grouped_cards[group].append((global_idx, card))
+            
+        group_order = ["Creatures", "Planeswalkers", "Artifacts", "Enchantments", "Instants", "Sorceries", "Others", "Lands", "Basic Lands"]
+        
+        # --- NEU: GETRENNTES RENDERING MIT GELBEM RAHMEN ---
+        for group_name in group_order:
+            if group_name in grouped_cards:
+                group_items = grouped_cards[group_name]
+                group_count = sum(card['count'] for _, card in group_items)
+                
+                # Überschrift der Gruppe
+                st.markdown(f"<div class='group-title'>{group_name} ({group_count})</div>", unsafe_allow_html=True)
+                
+                # Der Container mit dem CSS-Trick für den leuchtenden Rahmen
+                with st.container():
+                    st.markdown('<div class="card-group-marker"></div>', unsafe_allow_html=True)
+                    
+                    # Karten für diese spezifische Gruppe in Chunks rendern
+                    for i in range(0, len(group_items), grid_size):
+                        cols = st.columns(grid_size)
+                        for j in range(grid_size):
+                            if i + j < len(group_items):
+                                global_idx, card = group_items[i + j]
+                                with cols[j]:
+                                    st.image(card['urls'][0], use_container_width=True)
+                                    
+                                    st.markdown(f"""
+                                        <div style="text-align: center; height: 2.8em; line-height: 1.4em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; font-size: 14px; margin-bottom: 10px; color: #E0E0E0;" title="{card['count']}x {card['name']}">
+                                            {card['count']}x {card['name']}
+                                        </div>
+                                    """, unsafe_allow_html=True)
+                                    
+                                    if st.button("Change Art", key=f"change_art_{global_idx}"):
+                                        st.session_state.editing_idx = global_idx
+                                        st.session_state.variants_data = None
+                                        st.rerun()
         
         st.markdown("---")
         
@@ -743,3 +800,4 @@ if st.session_state.preview_cards is not None:
                 mime="application/pdf",
                 use_container_width=True
             )
+                                    
