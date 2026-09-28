@@ -372,6 +372,80 @@ def generate_deck_pdf(card_metadata, output_filename, paper_size_tuple, corner_s
         
     return images_added
 
+def generate_deck_jpgs(card_metadata, corner_style, spacing):
+    """Generiert hochauflösende JPGs im exakten Kaufland 13x18 cm Format (4 Karten pro Bild)"""
+    progress_bar = st.progress(0)
+    
+    # 300 DPI High-Res Skalierung für perfekte Schärfe (12.7cm x 17.8cm)
+    dpi = 300
+    w_px = int((12.7 / 2.54) * dpi)
+    h_px = int((17.8 / 2.54) * dpi)
+    
+    card_w_px = int((63 / 25.4) * dpi)
+    card_h_px = int((88 / 25.4) * dpi)
+    spacing_px = int((spacing / mm) / 25.4 * dpi) if spacing > 0 else 0
+    
+    margin_x_px = 0 if spacing == 0 else int((MARGIN_X / mm) / 25.4 * dpi)
+    margin_y_px = 0 if spacing == 0 else int((MARGIN_Y / mm) / 25.4 * dpi)
+    
+    jpg_pages = []
+    current_page_img = Image.new("RGB", (w_px, h_px), (0, 0, 0))
+    
+    max_cols = 2
+    max_rows = 2
+    
+    col = 0
+    row = 0
+    images_added = 0
+    
+    total_downloads = sum(len(item['urls']) for item in card_metadata)
+    downloaded = 0
+    
+    # Bilder im Vorfeld herunterladen
+    flat_card_images = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        for item in card_metadata:
+            future_to_url = {executor.submit(download_image, url, corner_style): url for url in item['urls']}
+            downloaded_images = []
+            for future in concurrent.futures.as_completed(future_to_url):
+                try:
+                    downloaded_images.append(future.result())
+                except:
+                    pass
+                downloaded += 1
+                if total_downloads > 0:
+                    progress_bar.progress(downloaded / total_downloads)
+            
+            for _ in range(item['count']):
+                for img in downloaded_images:
+                    flat_card_images.append(img.resize((card_w_px, card_h_px), Image.Resampling.LANCZOS))
+
+    # Im 2x2 Raster auf die 13x18 cm Seiten verteilen
+    for img in flat_card_images:
+        x = margin_x_px + col * (card_w_px + spacing_px)
+        y = margin_y_px + row * (card_h_px + spacing_px)
+        
+        current_page_img.paste(img, (x, y))
+        images_added += 1
+        col += 1
+        
+        if col >= max_cols:
+            col = 0
+            row += 1
+            
+        if row >= max_rows:
+            jpg_pages.append(current_page_img)
+            current_page_img = Image.new("RGB", (w_px, h_px), (0, 0, 0))
+            col = 0
+            row = 0
+            row = 0
+            
+    if col > 0 or row > 0:
+        jpg_pages.append(current_page_img)
+        
+    progress_bar.empty()
+    return jpg_pages
+
 def sort_preview_cards(cards):
     def sort_key(c):
         main_type = c['type'].split('—')[0].lower()
@@ -530,7 +604,6 @@ st.markdown("""
         box-shadow: 0 0 8px #FCEE0A !important;
     }
     
-    /* FIX: Korrekter, schwebender 'TP TO THE TOP' Button ohne Syntaxfehler */
     a.tp-to-top-btn {
         display: flex !important;
         align-items: center !important;
@@ -669,10 +742,16 @@ if 'preview_cards' not in st.session_state:
     st.session_state.preview_cards = None
 if 'error_log' not in st.session_state:
     st.session_state.error_log = None
-if 'pdf_ready' not in st.session_state:
-    st.session_state.pdf_ready = False
-if 'pdf_data' not in st.session_state:
-    st.session_state.pdf_data = None
+if 'output_ready' not in st.session_state:
+    st.session_state.output_ready = False
+if 'output_data' not in st.session_state:
+    st.session_state.output_data = None
+if 'output_filename' not in st.session_state:
+    st.session_state.output_filename = None
+if 'is_jpg_mode' not in st.session_state:
+    st.session_state.is_jpg_mode = False
+if 'total_cost' not in st.session_state:
+    st.session_state.total_cost = 0.0
 if 'images_added' not in st.session_state:
     st.session_state.images_added = 0
 if 'editing_idx' not in st.session_state:
@@ -683,7 +762,7 @@ if 'file_size_mb' not in st.session_state:
     st.session_state.file_size_mb = None
 
 st.title("Proxyfy by Nefpo")
-st.write("Free print-ready PDFs with lossless PNG quality.")
+st.write("Free print-ready proxies with lossless quality.")
 
 with st.sidebar:
     st.header("Card & Art Settings")
@@ -704,23 +783,24 @@ with st.sidebar:
     cut_mode = st.radio("Layout Mode", ["Normal Mode", "Single Cut Mode (No Spacing)"])
     actual_spacing = 0 if "Single" in cut_mode else (2 * mm)
     
-    corner_style = st.radio("Card Corners", ["Sharp (Square)", "Rounded"])  
-    paper_size_name = st.selectbox("Paper Size", ["A4", "A3", "US (Legal)", "DM Poster (20x30 cm)", "DM Foto (15x20 cm)"])
+    corner_style = st.radio("Card Corners", ["Sharp (Square)", "Rounded"]) 
+    paper_size_name = st.selectbox("Paper Size", ["A4", "A3", "US (Legal)", "DM Poster (20x30 cm)", "DM Foto (15x20 cm)", "Kaufland Foto (13x18 cm)"])
     
     paper_sizes = {
         "A4": A4, 
         "A3": A3, 
         "US (Legal)": legal,
         "DM Poster (20x30 cm)": (200 * mm, 300 * mm),
-        "DM Foto (15x20 cm)": (150 * mm, 200 * mm)
+        "DM Foto (15x20 cm)": (150 * mm, 200 * mm),
+        "Kaufland Foto (13x18 cm)": (127 * mm, 178 * mm)
     }
     selected_paper = paper_sizes[paper_size_name]
 
 decklist_input = st.text_area("Paste your decklist here:", height=200)
 
 if st.button("Load Cards & Show Preview", type="primary"):
-    st.session_state.pdf_ready = False 
-    st.session_state.pdf_data = None
+    st.session_state.output_ready = False 
+    st.session_state.output_data = None
     st.session_state.editing_idx = None
     st.session_state.file_size_mb = None
     
@@ -813,13 +893,13 @@ if st.session_state.preview_cards is not None:
                                         
                                         st.session_state.preview_cards.append(leftover_card)
                                         st.session_state.editing_idx = len(st.session_state.preview_cards) - 1
-                                        st.session_state.pdf_ready = False 
+                                        st.session_state.output_ready = False 
                                         st.rerun()
                                     else:
                                         st.session_state.preview_cards[edit_idx]['urls'] = v_img_urls
                                         st.session_state.editing_idx = None
                                         st.session_state.variants_data = None
-                                        st.session_state.pdf_ready = False 
+                                        st.session_state.output_ready = False 
                                         sort_preview_cards(st.session_state.preview_cards)
                                         st.rerun()
         else:
@@ -885,32 +965,74 @@ if st.session_state.preview_cards is not None:
         
         st.markdown("---")
         
-        if st.button("Generate Print-Ready PDF", type="primary", use_container_width=True):
-            pdf_filename = "Proxyfy_Deck.pdf"
-            
-            with st.spinner("Processing Card Images and building PDF..."):
-                images_added = generate_deck_pdf(st.session_state.preview_cards, pdf_filename, selected_paper, corner_style.split()[0], actual_spacing)
-            
-            if images_added > 0 and os.path.exists(pdf_filename):
-                file_size_bytes = os.path.getsize(pdf_filename)
-                st.session_state.file_size_mb = file_size_bytes / (1024 * 1024)
+        if st.button("Generate Print-Ready Output", type="primary", use_container_width=True):
+            if "Kaufland" in paper_size_name:
+                st.session_state.is_jpg_mode = True
+                with st.spinner("Rendering High-Res Kaufland JPGs (300 DPI)..."):
+                    jpg_pages = generate_deck_jpgs(st.session_state.preview_cards, corner_style.split()[0], actual_spacing)
+                    st.session_state.images_added = sum(c['count'] for c in st.session_state.preview_cards)
+                    
+                    # Berechne den Preis: 0.08 € pro Seite/Foto
+                    st.session_state.total_cost = len(jpg_pages) * 0.08
+                    
+                    if len(jpg_pages) == 1:
+                        # Einzelnes Bild direkt als Bytes bereitstellen
+                        buf = BytesIO()
+                        jpg_pages[0].save(buf, format="JPEG", quality=100)
+                        st.session_state.output_data = buf.getvalue()
+                        st.session_state.output_filename = "Proxyfy_Kaufland.jpg"
+                    else:
+                        # Mehrere Seiten: Als ZIP packen
+                        import zipfile
+                        zip_buf = BytesIO()
+                        with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                            for p_idx, p_img in enumerate(jpg_pages):
+                                p_buf = BytesIO()
+                                p_img.save(p_buf, format="JPEG", quality=100)
+                                zip_file.writestr(f"Proxyfy_Kaufland_Page_{p_idx+1}.jpg", p_buf.getvalue())
+                        st.session_state.output_data = zip_buf.getvalue()
+                        st.session_state.output_filename = "Proxyfy_Kaufland_Photos.zip"
+                        
+                    st.session_state.output_ready = True
+            else:
+                st.session_state.is_jpg_mode = False
+                pdf_filename = "Proxyfy_Deck.pdf"
+                with st.spinner("Processing Card Images and building PDF..."):
+                    images_added = generate_deck_pdf(st.session_state.preview_cards, pdf_filename, selected_paper, corner_style.split()[0], actual_spacing)
                 
-                with open(pdf_filename, "rb") as pdf_file:
-                    st.session_state.pdf_data = pdf_file.read()
-                    st.session_state.pdf_ready = True
+                if images_added > 0 and os.path.exists(pdf_filename):
+                    file_size_bytes = os.path.getsize(pdf_filename)
+                    st.session_state.file_size_mb = file_size_bytes / (1024 * 1024)
                     st.session_state.images_added = images_added
                     
-        if st.session_state.pdf_ready and st.session_state.pdf_data is not None:
-            size_text = f"{st.session_state.file_size_mb:.2f} MB" if st.session_state.file_size_mb else ""
-            st.success(f"Success: {st.session_state.images_added} cards generated on {paper_size_name} paper with {corner_style.lower()} corners. ({size_text})")
-            
-            button_label = f"Download PDF ({size_text})" if size_text else "Download PDF"
-            st.download_button(
-                label=button_label,
-                data=st.session_state.pdf_data,
-                file_name="Proxyfy_Deck.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
+                    with open(pdf_filename, "rb") as pdf_file:
+                        st.session_state.output_data = pdf_file.read()
+                        st.session_state.output_filename = "Proxyfy_Deck.pdf"
+                        st.session_state.output_ready = True
+                    
+        if st.session_state.output_ready and st.session_state.output_data is not None:
+            if st.session_state.is_jpg_mode:
+                st.success(f"Success: {st.session_state.images_added} cards generated for Kaufland (13x18 cm JPGs).")
+                st.info(f"💰 **Preis-Berechnung:** {len(st.session_state.output_data) if 'zip' in st.session_state.output_filename else 1} Foto(s) à 0.08 € = **Gesamtpreis: {st.session_state.total_cost:.2f} €**")
+                
+                st.download_button(
+                    label=f"Download Kaufland Photos ({st.session_state.total_cost:.2f} €)",
+                    data=st.session_state.output_data,
+                    file_name=st.session_state.output_filename,
+                    mime="application/zip" if "zip" in st.session_state.output_filename else "image/jpeg",
+                    use_container_width=True
+                )
+            else:
+                size_text = f"{st.session_state.file_size_mb:.2f} MB" if st.session_state.file_size_mb else ""
+                st.success(f"Success: {st.session_state.images_added} cards generated on {paper_size_name} paper. ({size_text})")
+                
+                button_label = f"Download PDF ({size_text})" if size_text else "Download PDF"
+                st.download_button(
+                    label=button_label,
+                    data=st.session_state.output_data,
+                    file_name=st.session_state.output_filename,
+                    mime="application/pdf",
+                    use_container_width=True
+                )
 
 st.markdown('<a href="#top" target="_self" class="tp-to-top-btn">TP TO THE TOP</a>', unsafe_allow_html=True)
