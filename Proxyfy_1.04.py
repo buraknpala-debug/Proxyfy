@@ -373,17 +373,14 @@ def generate_deck_pdf(card_metadata, output_filename, paper_size_tuple, corner_s
     return images_added
 
 def generate_deck_jpgs(card_metadata, corner_style, spacing):
-    """Generiert hochauflösende JPGs im exakten Kaufland 13x18 cm Format (4 Karten pro Bild)"""
     progress_bar = st.progress(0)
     
-    # 300 DPI High-Res Skalierung für perfekte Schärfe (12.7cm x 17.8cm)
     dpi = 300
     w_px = int((12.7 / 2.54) * dpi)
     h_px = int((17.8 / 2.54) * dpi)
     
     card_w_px = int((63 / 25.4) * dpi)
     card_h_px = int((88 / 25.4) * dpi)
-    spacing_px = int((spacing / mm) / 25.4 * dpi) if spacing > 0 else 0
     
     margin_x_px = 0 if spacing == 0 else int((MARGIN_X / mm) / 25.4 * dpi)
     margin_y_px = 0 if spacing == 0 else int((MARGIN_Y / mm) / 25.4 * dpi)
@@ -401,7 +398,6 @@ def generate_deck_jpgs(card_metadata, corner_style, spacing):
     total_downloads = sum(len(item['urls']) for item in card_metadata)
     downloaded = 0
     
-    # Bilder im Vorfeld herunterladen
     flat_card_images = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         for item in card_metadata:
@@ -420,10 +416,9 @@ def generate_deck_jpgs(card_metadata, corner_style, spacing):
                 for img in downloaded_images:
                     flat_card_images.append(img.resize((card_w_px, card_h_px), Image.Resampling.LANCZOS))
 
-    # Im 2x2 Raster auf die 13x18 cm Seiten verteilen
     for img in flat_card_images:
-        x = margin_x_px + col * (card_w_px + spacing_px)
-        y = margin_y_px + row * (card_h_px + spacing_px)
+        x = margin_x_px + col * (card_w_px + spacing) if spacing == 0 else margin_x_px + col * (card_w_px + int((2*mm/mm)/25.4*dpi))
+        y = margin_y_px + row * (card_h_px + spacing) if spacing == 0 else margin_y_px + row * (card_h_px + int((2*mm/mm)/25.4*dpi))
         
         current_page_img.paste(img, (x, y))
         images_added += 1
@@ -437,7 +432,6 @@ def generate_deck_jpgs(card_metadata, corner_style, spacing):
             jpg_pages.append(current_page_img)
             current_page_img = Image.new("RGB", (w_px, h_px), (0, 0, 0))
             col = 0
-            row = 0
             row = 0
             
     if col > 0 or row > 0:
@@ -750,8 +744,6 @@ if 'output_filename' not in st.session_state:
     st.session_state.output_filename = None
 if 'is_jpg_mode' not in st.session_state:
     st.session_state.is_jpg_mode = False
-if 'total_cost' not in st.session_state:
-    st.session_state.total_cost = 0.0
 if 'images_added' not in st.session_state:
     st.session_state.images_added = 0
 if 'editing_idx' not in st.session_state:
@@ -972,17 +964,12 @@ if st.session_state.preview_cards is not None:
                     jpg_pages = generate_deck_jpgs(st.session_state.preview_cards, corner_style.split()[0], actual_spacing)
                     st.session_state.images_added = sum(c['count'] for c in st.session_state.preview_cards)
                     
-                    # Berechne den Preis: 0.08 € pro Seite/Foto
-                    st.session_state.total_cost = len(jpg_pages) * 0.08
-                    
                     if len(jpg_pages) == 1:
-                        # Einzelnes Bild direkt als Bytes bereitstellen
                         buf = BytesIO()
                         jpg_pages[0].save(buf, format="JPEG", quality=100)
                         st.session_state.output_data = buf.getvalue()
                         st.session_state.output_filename = "Proxyfy_Kaufland.jpg"
                     else:
-                        # Mehrere Seiten: Als ZIP packen
                         import zipfile
                         zip_buf = BytesIO()
                         with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zip_file:
@@ -1013,10 +1000,9 @@ if st.session_state.preview_cards is not None:
         if st.session_state.output_ready and st.session_state.output_data is not None:
             if st.session_state.is_jpg_mode:
                 st.success(f"Success: {st.session_state.images_added} cards generated for Kaufland (13x18 cm JPGs).")
-                st.info(f"💰 **Preis-Berechnung:** {len(st.session_state.output_data) if 'zip' in st.session_state.output_filename else 1} Foto(s) à 0.08 € = **Gesamtpreis: {st.session_state.total_cost:.2f} €**")
                 
                 st.download_button(
-                    label=f"Download Kaufland Photos ({st.session_state.total_cost:.2f} €)",
+                    label="Download Kaufland Photos (ZIP)" if "zip" in st.session_state.output_filename else "Download Kaufland Photo (JPG)",
                     data=st.session_state.output_data,
                     file_name=st.session_state.output_filename,
                     mime="application/zip" if "zip" in st.session_state.output_filename else "image/jpeg",
