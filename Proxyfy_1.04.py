@@ -447,10 +447,6 @@ st.markdown("""
         box-shadow: 0 0 4px #FCEE0A40 !important;
     }
     
-    input[type="number"] {
-        text-align: center !important;
-    }
-
     div[data-testid="stHorizontalBlock"] {
         align-items: stretch !important;
     }
@@ -594,43 +590,37 @@ st.markdown("""
         }
     }
 
-    /* V1.8: CUSTOM GEOMETRIC MORPHING SPINNER */
-    
-    /* Animationslogik: Dreieck -> Viereck -> Fünfeck -> Kreis -> Dreieck */
-    @keyframes morphingSpinner {
-        0%, 100% { clip-path: polygon(50% 0%, 75% 50%, 100% 100%, 80% 100%, 50% 100%, 20% 100%, 0% 100%, 25% 50%, 50% 0%, 50% 0%); }
-        25%      { clip-path: polygon(50% 0%, 100% 0%, 100% 50%, 100% 100%, 50% 100%, 0% 100%, 0% 50%, 0% 0%, 25% 0%, 50% 0%); }
-        50%      { clip-path: polygon(50% 0%, 75% 19%, 100% 38%, 90% 69%, 81% 100%, 50% 100%, 19% 100%, 10% 69%, 0% 38%, 25% 19%); }
-        75%      { clip-path: polygon(50% 0%, 81% 9%, 100% 35%, 100% 70%, 81% 95%, 50% 100%, 19% 95%, 0% 70%, 0% 35%, 19% 9%); }
-    }
-    
-    @keyframes rotateSpinner {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
+    /* V1.9: HOLLOW SHAPE-JUMPING SPINNER (Kein Morphing mehr) */
+    @keyframes shapeJump {
+        0%, 19.9%  { content: "△"; }
+        20%, 39.9% { content: "□"; }
+        40%, 59.9% { content: "⬠"; }
+        60%, 79.9% { content: "○"; }
+        80%, 100%  { content: "△"; }
     }
 
-    /* Verstecke den standard Streamlit-Ring (mit dem weißen Strich) */
     div[data-testid="stSpinner"] > div:first-child {
         display: none !important;
     }
     
-    /* Spinner Layout anpassen */
     div[data-testid="stSpinner"] {
         display: flex;
         align-items: center;
-        gap: 15px; /* Abstand zwischen neuer Form und dem Text */
+        gap: 15px;
     }
     
-    /* Füge die neue animierte Geometrie-Form ein */
     div[data-testid="stSpinner"]::before {
-        content: "";
-        display: block;
-        min-width: 25px;
+        content: "△";
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 25px;
         height: 25px;
-        background-color: #E0E0E0; /* Exakte Textfarbe der Website (#E0E0E0) */
-        animation: morphingSpinner 4s ease-in-out infinite, rotateSpinner 3s linear infinite;
+        font-size: 24px;
+        line-height: 1;
+        color: #E0E0E0; /* Exakte Textfarbe der Website (#E0E0E0) */
+        animation: shapeJump 2s infinite;
     }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -750,14 +740,19 @@ if st.session_state.preview_cards is not None:
                                 set_name = v_card.get('set', '').upper()
                                 c_num = v_card.get('collector_number', '')
                                 
-                                split_count = st.number_input(
-                                    "Copies", 
-                                    min_value=0, 
-                                    max_value=active_card['count'], 
-                                    value=0,
-                                    label_visibility="collapsed",
-                                    key=f"split_num_{v_idx}"
-                                )
+                                # V1.9 FIX: Wenn es nur 1 Kopie gibt, verstecke das Zahlenfeld komplett!
+                                if active_card['count'] > 1:
+                                    split_count = st.number_input(
+                                        "Copies", 
+                                        min_value=0, 
+                                        max_value=active_card['count'], 
+                                        value=0,
+                                        step=1,
+                                        label_visibility="collapsed",
+                                        key=f"split_num_{v_idx}"
+                                    )
+                                else:
+                                    split_count = 1
                                 
                                 if st.button(f"Select {set_name} #{c_num}", key=f"sel_var_{v_idx}"):
                                     if split_count == 0:
@@ -835,7 +830,7 @@ if st.session_state.preview_cards is not None:
                                         </div>
                                     """, unsafe_allow_html=True)
                                     
-                                    if st.button("Change Art", key=f"change_art_{global_idx}"):
+                                    if st.button("🔀", key=f"change_art_{global_idx}"):
                                         st.session_state.editing_idx = global_idx
                                         st.session_state.variants_data = None
                                         st.rerun()
