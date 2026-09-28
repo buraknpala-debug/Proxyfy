@@ -542,7 +542,7 @@ st.markdown("""
         box-shadow: 0 0 15px #FCEE0A80 !important;
     }
 
-    /* NEUES DESIGN: GROUPING STYLES (Gelber Glow & Header) */
+    /* V1.6: DEZENTER GLOW FÜR DIE GRUPPEN */
     .group-title {
         color: #FCEE0A;
         font-size: 20px;
@@ -554,17 +554,45 @@ st.markdown("""
         text-shadow: 0 0 8px rgba(252, 238, 10, 0.4);
     }
     
-    /* Zielt exakt auf den Container ab, der eine Gruppe umgibt */
     div[data-testid="stVerticalBlock"]:has(.card-group-marker) {
-        border: 1px solid rgba(252, 238, 10, 0.4) !important;
-        box-shadow: 0 0 15px rgba(252, 238, 10, 0.15) !important;
-        padding: 20px !important;
+        border: 1px solid rgba(252, 238, 10, 0.15) !important;
+        box-shadow: 0 0 10px rgba(252, 238, 10, 0.05) !important;
+        padding: 15px !important;
         margin-bottom: 20px !important;
-        background-color: rgba(5, 5, 5, 0.5) !important;
+        background-color: rgba(5, 5, 5, 0.3) !important;
+        border-radius: 5px !important;
     }
     
     .card-group-marker {
         display: none;
+    }
+
+    /* V1.6: RESPONSIVE SWAP-BUTTONS (CSS CONTAINER QUERIES) */
+    div[data-testid="stVerticalBlock"]:has(.card-group-marker) [data-testid="column"] {
+        container-type: inline-size;
+        container-name: cardcol;
+    }
+    
+    div[data-testid="stVerticalBlock"]:has(.card-group-marker) div[data-testid="stButton"] button p {
+        font-size: 0px !important;
+        margin: 0;
+        padding: 0;
+    }
+    
+    div[data-testid="stVerticalBlock"]:has(.card-group-marker) div[data-testid="stButton"] button p::after {
+        content: "Change Art 🔀";
+        font-size: 13px !important;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        visibility: visible;
+    }
+    
+    /* Wenn die Spalte zu eng wird, blende den Text aus und zeige nur noch das Swap-Icon */
+    @container cardcol (max-width: 140px) {
+        div[data-testid="stVerticalBlock"]:has(.card-group-marker) div[data-testid="stButton"] button p::after {
+            content: "🔀";
+            font-size: 18px !important;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -726,7 +754,6 @@ if st.session_state.preview_cards is not None:
             for card, err in st.session_state.error_log.items():
                 st.write(f"- {card}: {err}")
         
-        # --- NEU: KARTEN-KATEGORISIERUNG FÜR DIE VORSCHAU ---
         grouped_cards = {}
         for global_idx, card in enumerate(st.session_state.preview_cards):
             main_type = card['type'].split('—')[0].strip().lower()
@@ -746,20 +773,16 @@ if st.session_state.preview_cards is not None:
             
         group_order = ["Creatures", "Planeswalkers", "Artifacts", "Enchantments", "Instants", "Sorceries", "Others", "Lands", "Basic Lands"]
         
-        # --- NEU: GETRENNTES RENDERING MIT GELBEM RAHMEN ---
         for group_name in group_order:
             if group_name in grouped_cards:
                 group_items = grouped_cards[group_name]
                 group_count = sum(card['count'] for _, card in group_items)
                 
-                # Überschrift der Gruppe
                 st.markdown(f"<div class='group-title'>{group_name} ({group_count})</div>", unsafe_allow_html=True)
                 
-                # Der Container mit dem CSS-Trick für den leuchtenden Rahmen
                 with st.container():
                     st.markdown('<div class="card-group-marker"></div>', unsafe_allow_html=True)
                     
-                    # Karten für diese spezifische Gruppe in Chunks rendern
                     for i in range(0, len(group_items), grid_size):
                         cols = st.columns(grid_size)
                         for j in range(grid_size):
@@ -774,7 +797,9 @@ if st.session_state.preview_cards is not None:
                                         </div>
                                     """, unsafe_allow_html=True)
                                     
-                                    if st.button("Change Art", key=f"change_art_{global_idx}"):
+                                    # Der Dummy-Text '🔀' sichert, dass immer etwas da ist, falls das CSS kurz lädt. 
+                                    # Das CSS überschreibt diesen Button danach perfekt.
+                                    if st.button("🔀", key=f"change_art_{global_idx}"):
                                         st.session_state.editing_idx = global_idx
                                         st.session_state.variants_data = None
                                         st.rerun()
@@ -800,4 +825,3 @@ if st.session_state.preview_cards is not None:
                 mime="application/pdf",
                 use_container_width=True
             )
-                                    
