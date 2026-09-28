@@ -712,6 +712,7 @@ with st.sidebar:
         "A3": A3, 
         "US (Legal)": legal,
         "DM Poster (20x30 cm)": (200 * mm, 300 * mm)
+        "DM Foto (15x20 cm)": (150 * mm, 200 * mm)
     }
     selected_paper = paper_sizes[paper_size_name]
 
