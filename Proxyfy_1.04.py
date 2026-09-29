@@ -372,21 +372,32 @@ def generate_deck_pdf(card_metadata, output_filename, paper_size_tuple, corner_s
         
     return images_added
 
-def generate_deck_jpgs(card_metadata, corner_style, spacing):
+def generate_deck_jpgs(card_metadata, corner_style, spacing, white_bg=True):
     progress_bar = st.progress(0)
     
     dpi = 300
+    # Exakte Kaufland 13x18 Maße (12.7 cm x 17.8 cm)
     w_px = int((12.7 / 2.54) * dpi)
     h_px = int((17.8 / 2.54) * dpi)
     
     card_w_px = int((63 / 25.4) * dpi)
     card_h_px = int((88 / 25.4) * dpi)
     
-    margin_x_px = 0 if spacing == 0 else int((MARGIN_X / mm) / 25.4 * dpi)
-    margin_y_px = 0 if spacing == 0 else int((MARGIN_Y / mm) / 25.4 * dpi)
+    # 1mm Spacing für die Schnittfuge
+    spacing_px = int((spacing / mm) / 25.4 * dpi)
+    
+    # Zentrierung des 2x2 Blocks auf der 13x18 cm Fläche
+    total_w = 2 * card_w_px + spacing_px
+    total_h = 2 * card_h_px + spacing_px
+    
+    margin_x_px = max(0, (w_px - total_w) // 2)
+    margin_y_px = max(0, (h_px - total_h) // 2)
+    
+    # Reines Weiß für Schnittlinien und Randfläche
+    bg_color = (255, 255, 255) if white_bg else (0, 0, 0)
     
     jpg_pages = []
-    current_page_img = Image.new("RGB", (w_px, h_px), (0, 0, 0))
+    current_page_img = Image.new("RGB", (w_px, h_px), bg_color)
     
     max_cols = 2
     max_rows = 2
@@ -417,8 +428,8 @@ def generate_deck_jpgs(card_metadata, corner_style, spacing):
                     flat_card_images.append(img.resize((card_w_px, card_h_px), Image.Resampling.LANCZOS))
 
     for img in flat_card_images:
-        x = margin_x_px + col * (card_w_px + spacing) if spacing == 0 else margin_x_px + col * (card_w_px + int((2*mm/mm)/25.4*dpi))
-        y = margin_y_px + row * (card_h_px + spacing) if spacing == 0 else margin_y_px + row * (card_h_px + int((2*mm/mm)/25.4*dpi))
+        x = margin_x_px + col * (card_w_px + spacing_px)
+        y = margin_y_px + row * (card_h_px + spacing_px)
         
         current_page_img.paste(img, (x, y))
         images_added += 1
@@ -430,7 +441,7 @@ def generate_deck_jpgs(card_metadata, corner_style, spacing):
             
         if row >= max_rows:
             jpg_pages.append(current_page_img)
-            current_page_img = Image.new("RGB", (w_px, h_px), (0, 0, 0))
+            current_page_img = Image.new("RGB", (w_px, h_px), bg_color)
             col = 0
             row = 0
             
@@ -772,11 +783,20 @@ with st.sidebar:
     st.markdown("---")
     st.header("Print Settings")
     
-    cut_mode = st.radio("Layout Mode", ["Normal Mode", "Single Cut Mode (No Spacing)"])
-    actual_spacing = 0 if "Single" in cut_mode else (2 * mm)
+    cut_mode = st.radio("Layout Mode", ["Guided Cut (1mm White Hairlines)", "Normal Mode (2mm Spacing)", "Single Cut Mode (No Spacing)"])
+    
+    if "Guided" in cut_mode:
+        actual_spacing = 1 * mm
+        is_white_bg = True
+    elif "Single" in cut_mode:
+        actual_spacing = 0
+        is_white_bg = True
+    else:
+        actual_spacing = 2 * mm
+        is_white_bg = True
     
     corner_style = st.radio("Card Corners", ["Sharp (Square)", "Rounded"]) 
-    paper_size_name = st.selectbox("Paper Size", ["A4", "A3", "US (Legal)", "DM Poster (20x30 cm)", "DM Foto (15x20 cm)", "Kaufland Foto (13x18 cm)"])
+    paper_size_name = st.selectbox("Paper Size", ["Kaufland Foto (13x18 cm)", "A4", "A3", "US (Legal)", "DM Poster (20x30 cm)", "DM Foto (15x20 cm)"])
     
     paper_sizes = {
         "A4": A4, 
@@ -958,17 +978,17 @@ if st.session_state.preview_cards is not None:
         st.markdown("---")
         
         if st.button("Generate Print-Ready Output", type="primary", use_container_width=True):
-            if "Kaufland" in paper_size_name:
+            if "Kaufland" in paper_size_name or "DM Foto" in paper_size_name:
                 st.session_state.is_jpg_mode = True
-                with st.spinner("Rendering High-Res Kaufland JPGs (300 DPI)..."):
-                    jpg_pages = generate_deck_jpgs(st.session_state.preview_cards, corner_style.split()[0], actual_spacing)
+                with st.spinner("Rendering High-Res JPGs (300 DPI) with 1mm Hairline Alignment..."):
+                    jpg_pages = generate_deck_jpgs(st.session_state.preview_cards, corner_style.split()[0], actual_spacing, white_bg=is_white_bg)
                     st.session_state.images_added = sum(c['count'] for c in st.session_state.preview_cards)
                     
                     if len(jpg_pages) == 1:
                         buf = BytesIO()
                         jpg_pages[0].save(buf, format="JPEG", quality=100)
                         st.session_state.output_data = buf.getvalue()
-                        st.session_state.output_filename = "Proxyfy_Kaufland.jpg"
+                        st.session_state.output_filename = "Proxyfy_Photo.jpg"
                     else:
                         import zipfile
                         zip_buf = BytesIO()
@@ -976,9 +996,9 @@ if st.session_state.preview_cards is not None:
                             for p_idx, p_img in enumerate(jpg_pages):
                                 p_buf = BytesIO()
                                 p_img.save(p_buf, format="JPEG", quality=100)
-                                zip_file.writestr(f"Proxyfy_Kaufland_Page_{p_idx+1}.jpg", p_buf.getvalue())
+                                zip_file.writestr(f"Proxyfy_Photo_Page_{p_idx+1}.jpg", p_buf.getvalue())
                         st.session_state.output_data = zip_buf.getvalue()
-                        st.session_state.output_filename = "Proxyfy_Kaufland_Photos.zip"
+                        st.session_state.output_filename = "Proxyfy_Photos.zip"
                         
                     st.session_state.output_ready = True
             else:
@@ -999,10 +1019,10 @@ if st.session_state.preview_cards is not None:
                     
         if st.session_state.output_ready and st.session_state.output_data is not None:
             if st.session_state.is_jpg_mode:
-                st.success(f"Success: {st.session_state.images_added} cards generated for Kaufland (13x18 cm JPGs).")
+                st.success(f"Success: {st.session_state.images_added} cards generated for Photo Print.")
                 
                 st.download_button(
-                    label="Download Kaufland Photos (ZIP)" if "zip" in st.session_state.output_filename else "Download Kaufland Photo (JPG)",
+                    label="Download Photos (ZIP)" if "zip" in st.session_state.output_filename else "Download Photo (JPG)",
                     data=st.session_state.output_data,
                     file_name=st.session_state.output_filename,
                     mime="application/zip" if "zip" in st.session_state.output_filename else "image/jpeg",
