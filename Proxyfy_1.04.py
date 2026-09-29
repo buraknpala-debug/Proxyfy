@@ -383,17 +383,17 @@ def generate_deck_jpgs(card_metadata, corner_style, spacing, white_bg=True):
     card_w_px = int((63 / 25.4) * dpi)
     card_h_px = int((88 / 25.4) * dpi)
     
-    # 1mm Spacing für die Schnittfuge
+    # Dynamisches Spacing in Pixel umwandeln
     spacing_px = int((spacing / mm) / 25.4 * dpi)
     
-    # Zentrierung des 2x2 Blocks auf der 13x18 cm Fläche
+    # Zentrierung des 2x2 Blocks auf der Fläche
     total_w = 2 * card_w_px + spacing_px
     total_h = 2 * card_h_px + spacing_px
     
     margin_x_px = max(0, (w_px - total_w) // 2)
     margin_y_px = max(0, (h_px - total_h) // 2)
     
-    # Reines Weiß für Schnittlinien und Randfläche
+    # Hintergrund (weiß für Schnittlinien, sonst schwarz)
     bg_color = (255, 255, 255) if white_bg else (0, 0, 0)
     
     jpg_pages = []
@@ -783,10 +783,10 @@ with st.sidebar:
     st.markdown("---")
     st.header("Print Settings")
     
-    cut_mode = st.radio("Layout Mode", ["Guided Cut (1mm White Hairlines)", "Normal Mode (2mm Spacing)", "Single Cut Mode (No Spacing)"])
+    cut_mode = st.radio("Layout Mode", ["Guided Cut (0.25mm Ultra-Thin Hairlines)", "Normal Mode (2mm Spacing)", "Single Cut Mode (No Spacing)"])
     
     if "Guided" in cut_mode:
-        actual_spacing = 1 * mm
+        actual_spacing = 0.25 * mm
         is_white_bg = True
     elif "Single" in cut_mode:
         actual_spacing = 0
@@ -980,7 +980,7 @@ if st.session_state.preview_cards is not None:
         if st.button("Generate Print-Ready Output", type="primary", use_container_width=True):
             if "Kaufland" in paper_size_name or "DM Foto" in paper_size_name:
                 st.session_state.is_jpg_mode = True
-                with st.spinner("Rendering High-Res JPGs (300 DPI) with 1mm Hairline Alignment..."):
+                with st.spinner("Rendering High-Res JPGs (300 DPI) with Ultra-Thin Hairline Alignment..."):
                     jpg_pages = generate_deck_jpgs(st.session_state.preview_cards, corner_style.split()[0], actual_spacing, white_bg=is_white_bg)
                     st.session_state.images_added = sum(c['count'] for c in st.session_state.preview_cards)
                     
